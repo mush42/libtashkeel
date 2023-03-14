@@ -1,0 +1,12 @@
+[package]
+name = "pylibtashkeel"
+version = "0.2.0"
+edition = "2021"
+
+[lib]
+name = "pylibtashkeel"
+crate-type = ["cdylib"]
+
+[dependencies]
+libtashkeel_base = { path = "../libtashkeel_base" }
+pyo3 = { version = "0.18.1", features = ["extension-module"] }

@@ -1,0 +1,7 @@
+[workspace]
+
+members = [
+    "libtashkeel_base",
+    "libtashkeel",
+    "pylibtashkeel",
+]

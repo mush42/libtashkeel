@@ -1,0 +1,10 @@
+[package]
+name = "libtashkeel_base"
+version = "0.2.0"
+edition = "2021"
+
+[dependencies]
+lazy_static = "1.4.0"
+ndarray = "0.15.6"
+ndarray-stats = "0.5.1"
+ort = "1.14.1"
