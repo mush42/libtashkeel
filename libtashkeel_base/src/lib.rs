@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 const MAX_INPUT_CHARS: usize = 315;
-const MODEL_BYTES: &[u8; 10178834] = include_bytes!("data/model.onnx");
+const MODEL_BYTES: &[u8; 10261536] = include_bytes!("data/model.ort");
 const INPUT_VOCAB_TO_INT_STR: &str = include_str!("data/dictionary/input_vocab_to_int.txt");
 const OUTPUT_INT_TO_VOCAB_STR: &str = include_str!("data/dictionary/output_int_to_vocab.txt");
 const PAD_STR: &str = "<PAD>";
