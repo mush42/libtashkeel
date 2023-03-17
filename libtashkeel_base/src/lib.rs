@@ -24,7 +24,7 @@ lazy_static! {
 
 lazy_static! {
     static ref CHARACTERS_MAPPING: HashMap<String, f32> = CHARACTERS_MAPPING_STR
-        .split("#")
+        .split('#')
         .map(|line| {
             let pair: Vec<&str> = line.split('|').collect();
             let vocab = pair[0].to_string();
@@ -87,8 +87,7 @@ pub fn do_tashkeel(text: String) -> String {
             CHARACTERS_MAPPING
                 .get(&c.to_string())
                 .unwrap_or(&UNK_INPUT_ID)
-        })
-        .map(|id| id.clone())
+        }).copied()
         .collect();
     input_ids.insert(0, *SOS_INPUT_ID );
     input_ids.push(*EOS_INPUT_ID);
@@ -106,7 +105,7 @@ pub fn do_tashkeel(text: String) -> String {
         .map(|row| row.argmax().unwrap())
         .filter_map(|idx| {
             let prediction = REV_CLASSES_MAPPING.get(&idx).unwrap();
-            if prediction.starts_with("<") {
+            if prediction.starts_with('<') {
                 None
             } else {
                 Some(prediction.as_str())
