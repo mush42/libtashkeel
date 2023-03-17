@@ -1,5 +1,5 @@
 use lazy_static::lazy_static;
-use ndarray::Array2;
+use ndarray::Array;
 use ndarray_stats::QuantileExt;
 use ort::{
     tensor::{DynOrtTensor, FromArray, InputTensor, OrtOwnedTensor},
@@ -8,33 +8,40 @@ use ort::{
 use std::collections::HashMap;
 use std::sync::Arc;
 
-const MAX_INPUT_CHARS: usize = 315;
-const MODEL_BYTES: &[u8; 10261536] = include_bytes!("data/model.ort");
-const INPUT_VOCAB_TO_INT_STR: &str = include_str!("data/dictionary/input_vocab_to_int.txt");
-const OUTPUT_INT_TO_VOCAB_STR: &str = include_str!("data/dictionary/output_int_to_vocab.txt");
-const PAD_STR: &str = "<PAD>";
-const INVALID_HARAKA: [&str; 2] = ["<UNK>", "ـ"];
+
+const NUM_INPUT_CHARS: usize = 1024;
+const MODEL_BYTES: &[u8; 10920272] = include_bytes!("data/model.ort");
+const ARABIC_LETTERS_LIST_STR: &str = "ءآأؤإئابةتثجحخدذرزسشصضطظعغفقكلمنهوىي";
+const DIACRITICS_LIST_STR: &str = "ًٌٍَُِّْ";
+const CHARACTERS_MAPPING_STR: &str = include_str!("data/dictionary/CHARACTERS_MAPPING.txt");
+const REV_CLASSES_MAPPING_STR: &str = include_str!("data/dictionary/REV_CLASSES_MAPPING.txt");
+
 
 lazy_static! {
-    static ref HARAKAT_CHARS: Vec<char> =
-        (1612..1619).map(|n| char::from_u32(n).unwrap()).collect();
+    static ref ARABIC_LETTERS_LIST: Vec<char> = ARABIC_LETTERS_LIST_STR.chars().collect();
+    static ref DIACRITICS_LIST: Vec<char> = DIACRITICS_LIST_STR.chars().collect();
 }
 
 lazy_static! {
-    static ref INPUT_VOCAB_TO_INT: HashMap<String, u8> = INPUT_VOCAB_TO_INT_STR
-        .lines()
+    static ref CHARACTERS_MAPPING: HashMap<String, f32> = CHARACTERS_MAPPING_STR
+        .split("#")
         .map(|line| {
             let pair: Vec<&str> = line.split('|').collect();
             let vocab = pair[0].to_string();
-            let vid: u8 = pair[1].parse().unwrap();
+            let vid: f32 = pair[1].parse().unwrap();
             (vocab, vid)
         })
         .collect();
-    static ref UNK_INPUT_ID: u8 = *INPUT_VOCAB_TO_INT.get("<UNK>").unwrap();
+    // Special values
+    static ref SOS_INPUT_ID: f32 = *CHARACTERS_MAPPING.get("<SOS>").unwrap();
+    static ref EOS_INPUT_ID: f32 = *CHARACTERS_MAPPING.get("<EOS>").unwrap();
+    static ref UNK_INPUT_ID: f32 = *CHARACTERS_MAPPING.get("<UNK>").unwrap();
+    static ref PAD_INPUT_ID: f32 = *CHARACTERS_MAPPING.get("<PAD>").unwrap();
 }
 
+
 lazy_static! {
-    static ref OUTPUT_INT_TO_VOCAB: HashMap<usize, String> = OUTPUT_INT_TO_VOCAB_STR
+    static ref REV_CLASSES_MAPPING: HashMap<usize, String> = REV_CLASSES_MAPPING_STR
         .lines()
         .map(|line| {
             let pair: Vec<&str> = line.split('|').collect();
@@ -61,6 +68,8 @@ lazy_static! {
         .unwrap()
         .with_intra_threads(4)
         .unwrap()
+        .with_inter_threads(4)
+        .unwrap()
         .with_memory_pattern(true)
         .unwrap()
         .with_model_from_memory(MODEL_BYTES)
@@ -70,20 +79,21 @@ lazy_static! {
 pub fn do_tashkeel(text: String) -> String {
     let input_sent: Vec<char> = text
         .chars()
-        .filter(|c| !HARAKAT_CHARS.contains(c))
+        .filter(|c| !DIACRITICS_LIST.contains(c))
         .collect();
     let mut input_ids: Vec<f32> = input_sent
         .iter()
         .map(|c| {
-            INPUT_VOCAB_TO_INT
+            CHARACTERS_MAPPING
                 .get(&c.to_string())
                 .unwrap_or(&UNK_INPUT_ID)
         })
-        .map(|id| *id as f32)
+        .map(|id| id.clone())
         .collect();
-    input_ids.resize(MAX_INPUT_CHARS, 0.0);
-    let input_array = Array2::<f32>::from_shape_vec((1, input_ids.len()), input_ids).unwrap();
-
+    input_ids.insert(0, *SOS_INPUT_ID );
+    input_ids.push(*EOS_INPUT_ID);
+    input_ids.resize(NUM_INPUT_CHARS, *PAD_INPUT_ID);
+    let input_array = Array::from_shape_vec((1, NUM_INPUT_CHARS), input_ids).unwrap();
     let outputs: Vec<DynOrtTensor<ndarray::Dim<ndarray::IxDynImpl>>> = ORT_SESSION
         .run([InputTensor::from_array(input_array.into_dyn())])
         .unwrap();
@@ -95,8 +105,8 @@ pub fn do_tashkeel(text: String) -> String {
         .into_iter()
         .map(|row| row.argmax().unwrap())
         .filter_map(|idx| {
-            let prediction = OUTPUT_INT_TO_VOCAB.get(&idx).unwrap();
-            if prediction == PAD_STR {
+            let prediction = REV_CLASSES_MAPPING.get(&idx).unwrap();
+            if prediction.starts_with("<") {
                 None
             } else {
                 Some(prediction.as_str())
@@ -110,7 +120,7 @@ pub fn do_tashkeel(text: String) -> String {
 fn combine_text_with_harakat(input_sent: Vec<char>, output_sent: Vec<&str>) -> String {
     let mut text = String::new();
     for (character, haraka) in input_sent.iter().zip(output_sent.iter()) {
-        if INVALID_HARAKA.contains(haraka) {
+        if !ARABIC_LETTERS_LIST.contains(character) {
             text.push(*character);
         } else {
             text.push(*character);
