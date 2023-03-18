@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 
-const NUM_INPUT_CHARS: usize = 1024;
+const NUM_INPUT_CHARS: usize = 512;
 const MODEL_BYTES: &[u8; 10920272] = include_bytes!("data/model.ort");
 const ARABIC_LETTERS_LIST_STR: &str = "ءآأؤإئابةتثجحخدذرزسشصضطظعغفقكلمنهوىي";
 const DIACRITICS_LIST_STR: &str = "ًٌٍَُِّْ";
@@ -74,6 +74,15 @@ lazy_static! {
         .unwrap()
         .with_model_from_memory(MODEL_BYTES)
         .unwrap();
+}
+
+pub fn preprocess_and_do_tashkeel(text: String) -> String {
+    let text = text.replace(['.', ',', '،', ':', ';', '؛'], "\n");
+    let retval: Vec<String> = text
+        .lines()
+        .map(|line| do_tashkeel(line.to_string()))
+        .collect();
+    retval.join("\n")
 }
 
 pub fn do_tashkeel(text: String) -> String {
