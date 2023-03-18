@@ -5,7 +5,7 @@ import os
 
 
 # Change this based on library path
-LIBTASHKEEL_PATH = os.path.abspath("../target/debug/libtashkeel.dll")
+LIBTASHKEEL_PATH = os.path.abspath("./target/debug/libtashkeel.dll")
 
 class LibtashkeelError(ctypes.Structure):
     _fields_ = [
@@ -41,13 +41,13 @@ lib.libtashkeel_free_string.argtypes = (ctypes.c_void_p, )
 
 
 def tashkeel(text):
-    err = LibtashkeelError()
+    out_err = LibtashkeelError()
     ptr = lib.libtashkeelTashkeel(
         ctypes.c_char_p(text.encode("utf-8")),
-        err
+        out_err
     )
-    if err.err_code != 0:
-        raise RuntimeError(err.message)
+    if out_err.err_code != 0:
+        raise RuntimeError(out_err.message)
     try:
         res = ctypes.cast(ptr, ctypes.c_char_p).value.decode('utf-8')
     finally:
