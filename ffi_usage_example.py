@@ -35,16 +35,15 @@ class LibtashkeelError(ctypes.Structure):
 
 lib = ctypes.cdll.LoadLibrary(LIBTASHKEEL_PATH)
 
-lib.libtashkeelTashkeel.argtypes = (ctypes.c_char_p, ctypes.c_byte, LibtashkeelError)
+lib.libtashkeelTashkeel.argtypes = (ctypes.c_char_p, LibtashkeelError)
 lib.libtashkeelTashkeel.restype = ctypes.c_void_p
 lib.libtashkeel_free_string.argtypes = (ctypes.c_void_p, )
 
 
-def tashkeel(text, should_preprocess=False):
+def tashkeel(text):
     out_err = LibtashkeelError()
     ptr = lib.libtashkeelTashkeel(
         ctypes.c_char_p(text.encode("utf-8")),
-        should_preprocess,
         out_err
     )
     if out_err.err_code != 0:

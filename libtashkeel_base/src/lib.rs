@@ -9,7 +9,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 
-const NUM_INPUT_CHARS: usize = 512;
 const MODEL_BYTES: &[u8; 10920272] = include_bytes!("data/model.ort");
 const ARABIC_LETTERS_LIST_STR: &str = "ءآأؤإئابةتثجحخدذرزسشصضطظعغفقكلمنهوىي";
 const DIACRITICS_LIST_STR: &str = "ًٌٍَُِّْ";
@@ -20,6 +19,7 @@ const REV_CLASSES_MAPPING_STR: &str = include_str!("data/dictionary/REV_CLASSES_
 lazy_static! {
     static ref ARABIC_LETTERS_LIST: Vec<char> = ARABIC_LETTERS_LIST_STR.chars().collect();
     static ref DIACRITICS_LIST: Vec<char> = DIACRITICS_LIST_STR.chars().collect();
+    static ref NEWLINE_PLACEHOLDER: String = char::from_u32(8205).unwrap().to_string();
 }
 
 lazy_static! {
@@ -76,37 +76,29 @@ lazy_static! {
         .unwrap();
 }
 
-pub fn preprocess_and_do_tashkeel(text: String) -> String {
-    let text = text.replace(['.', ',', '،', ':', ';', '؛'], "\n");
-    let retval: Vec<String> = text
-        .lines()
-        .map(|line| do_tashkeel(line.to_string()))
-        .collect();
-    retval.join("\n")
-}
 
 pub fn do_tashkeel(text: String) -> String {
-    let input_sent: Vec<char> = text
-        .chars()
-        .filter(|c| !DIACRITICS_LIST.contains(c))
-        .collect();
-    let mut input_ids: Vec<f32> = input_sent
-        .iter()
-        .map(|c| {
-            CHARACTERS_MAPPING
-                .get(&c.to_string())
-                .unwrap_or(&UNK_INPUT_ID)
-        }).copied()
-        .collect();
-    input_ids.insert(0, *SOS_INPUT_ID );
-    input_ids.push(*EOS_INPUT_ID);
-    input_ids.resize(NUM_INPUT_CHARS, *PAD_INPUT_ID);
-    let input_array = Array::from_shape_vec((1, NUM_INPUT_CHARS), input_ids).unwrap();
+    let text_without_harakets = text.replace(DIACRITICS_LIST.as_slice(), "").replace('\n', &NEWLINE_PLACEHOLDER);
+    let input_lines: String  = text_without_harakets.replace(['.', ',', '،', ':', ';', '؛'], ".\n");
+    let mut input_ids: Vec<f32> = Vec::new();
+    for line in input_lines.lines() {
+        let mut sentence: Vec<f32> = line
+            .chars()
+            .map(|c| {
+                CHARACTERS_MAPPING
+                    .get(&c.to_string())
+                    .unwrap_or(&UNK_INPUT_ID)
+            }).copied()
+            .collect();
+        sentence.insert(0, *SOS_INPUT_ID);
+        sentence.push(*EOS_INPUT_ID);
+        input_ids.append(&mut sentence);
+    }
+    let input_array = Array::from_shape_vec((1, input_ids.len()), input_ids).unwrap();
     let outputs: Vec<DynOrtTensor<ndarray::Dim<ndarray::IxDynImpl>>> = ORT_SESSION
         .run([InputTensor::from_array(input_array.into_dyn())])
         .unwrap();
     let logets: OrtOwnedTensor<f32, _> = outputs[0].try_extract().unwrap();
-
     let mut predicted_herakats = logets
         .view()
         .rows()
@@ -121,21 +113,21 @@ pub fn do_tashkeel(text: String) -> String {
             }
         })
         .collect::<Vec<&str>>();
-    predicted_herakats.resize(input_sent.len(), "");
-    combine_text_with_harakat(input_sent, predicted_herakats)
+    predicted_herakats.resize(text_without_harakets.len(), "");
+    combine_text_with_harakat(text_without_harakets, predicted_herakats)
 }
 
-fn combine_text_with_harakat(input_sent: Vec<char>, output_sent: Vec<&str>) -> String {
+fn combine_text_with_harakat(input_sent: String, output_sent: Vec<&str>) -> String {
     let mut text = String::new();
-    for (character, haraka) in input_sent.iter().zip(output_sent.iter()) {
-        if !ARABIC_LETTERS_LIST.contains(character) {
-            text.push(*character);
+    for (character, haraka) in input_sent.chars().zip(output_sent.iter()) {
+        if !ARABIC_LETTERS_LIST.contains(&character) {
+            text.push(character);
         } else {
-            text.push(*character);
+            text.push(character);
             text.push_str(haraka);
         }
     }
-    text
+    text.replace(&*NEWLINE_PLACEHOLDER, "\n")
 }
 
 // ==============================
