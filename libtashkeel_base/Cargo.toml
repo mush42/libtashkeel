@@ -7,4 +7,4 @@ edition = "2021"
 lazy_static = "1.4.0"
 ndarray = "0.15.6"
 ndarray-stats = "0.5.1"
-ort = { git = "https://github.com/pykeio/ort", version = "1.14.1", rev = "f6135fcb1134e20a8375afb9166f5f7222137a67", features=["compile-static", "download-binaries"] }
+ort = { version = "1.14.3", features=["load-dynamic", "download-binaries"] }
