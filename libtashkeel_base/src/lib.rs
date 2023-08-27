@@ -1,123 +1,215 @@
-use lazy_static::lazy_static;
-use ndarray::Array2;
-use ndarray_stats::QuantileExt;
-use ort::{
-    tensor::{DynOrtTensor, FromArray, InputTensor, OrtOwnedTensor},
-    Environment, ExecutionProvider, GraphOptimizationLevel, SessionBuilder,
-};
-use std::collections::HashMap;
-use std::sync::Arc;
+use once_cell::sync::Lazy;
+use std::collections::{HashMap, HashSet};
+use std::iter;
+use thiserror::Error;
 
-const MAX_INPUT_CHARS: usize = 315;
-const MODEL_BYTES: &[u8; 10261536] = include_bytes!("data/model.ort");
-const INPUT_VOCAB_TO_INT_STR: &str = include_str!("data/dictionary/input_vocab_to_int.txt");
-const OUTPUT_INT_TO_VOCAB_STR: &str = include_str!("data/dictionary/output_int_to_vocab.txt");
-const PAD_STR: &str = "<PAD>";
-const INVALID_HARAKA: [&str; 2] = ["<UNK>", "ـ"];
+mod inference_engine;
+pub use self::inference_engine::DynamicInferenceEngine;
 
-lazy_static! {
-    static ref HARAKAT_CHARS: Vec<char> =
-        (1612..1619).map(|n| char::from_u32(n).unwrap()).collect();
+#[cfg(any(feature = "ort", feature = "tract"))]
+pub use self::inference_engine::create_inference_engine;
+
+pub type LibtashkeelResult<T> = Result<T, LibtashkeelError>;
+
+pub const CHAR_LIMIT: usize = 300;
+const PAD: char = '_';
+const SOS: char = '^';
+const EOS: char = '$';
+static INPUT_ID_MAP: Lazy<HashMap<char, i64>> =
+    Lazy::new(|| serde_json::from_str(include_str!("../data/input_id_map.json")).unwrap());
+static TARGET_ID_MAP: Lazy<HashMap<u8, String>> = Lazy::new(|| {
+    let target_id_map: HashMap<String, u8> =
+        serde_json::from_str(include_str!("../data/target_id_map.json")).unwrap();
+    reversed_mapping(&target_id_map)
+});
+static TARGET_META_CHAR_IDS: Lazy<HashSet<u8>> = Lazy::new(|| {
+    // Fixme: asumes that input ids are the same as target ids
+    HashSet::from_iter([PAD, SOS, EOS].map(|c| INPUT_ID_MAP[&c]).map(|i| i as u8))
+});
+static ARABIC_DIACRITICS: Lazy<HashSet<char>> = Lazy::new(|| {
+    HashSet::from_iter(
+        [1618, 1617, 1614, 1615, 1616, 1611, 1612, 1613]
+            .iter()
+            .map(|i| unsafe { char::from_u32_unchecked(*i) }),
+    )
+});
+static SENTENCE_BOUNDRIES: Lazy<HashSet<char>> =
+    Lazy::new(|| HashSet::from_iter(['.', '،', '؟', '!']));
+
+pub trait InferenceEngine {
+    fn infer(
+        &self,
+        input_ids: Vec<i64>,
+        seq_length: usize,
+    ) -> LibtashkeelResult<(Vec<u8>, Vec<f32>)>;
 }
 
-lazy_static! {
-    static ref INPUT_VOCAB_TO_INT: HashMap<String, u8> = INPUT_VOCAB_TO_INT_STR
-        .lines()
-        .map(|line| {
-            let pair: Vec<&str> = line.split('|').collect();
-            let vocab = pair[0].to_string();
-            let vid: u8 = pair[1].parse().unwrap();
-            (vocab, vid)
-        })
-        .collect();
-    static ref UNK_INPUT_ID: u8 = *INPUT_VOCAB_TO_INT.get("<UNK>").unwrap();
+#[derive(Error, Debug)]
+pub enum LibtashkeelError {
+    #[error("input too long. Expected {0} characters")]
+    InputTooLong(usize),
+    #[error("Inference error. {0}")]
+    InferenceError(String),
+    #[error("Resource not found. {0}")]
+    ModelLoadError(#[from] std::io::Error),
 }
 
-lazy_static! {
-    static ref OUTPUT_INT_TO_VOCAB: HashMap<usize, String> = OUTPUT_INT_TO_VOCAB_STR
-        .lines()
-        .map(|line| {
-            let pair: Vec<&str> = line.split('|').collect();
-            let vid: usize = pair[0].parse().unwrap();
-            let vocab = pair[1].to_string();
-            (vid, vocab)
-        })
-        .collect();
+fn reversed_mapping<K, V>(input: &HashMap<K, V>) -> HashMap<V, K>
+where
+    K: ToOwned<Owned = K>,
+    V: ToOwned<Owned = V> + std::hash::Hash + std::cmp::Eq,
+{
+    HashMap::from_iter(input.iter().map(|(k, v)| (v.to_owned(), k.to_owned())))
 }
 
-lazy_static! {
-    static ref _ENVIRONMENT: Arc<ort::Environment> = Arc::new(
-        Environment::builder()
-            .with_name("libtashkeel")
-            .with_execution_providers([ExecutionProvider::cpu()])
-            .build()
-            .unwrap()
-    );
-    pub static ref ORT_SESSION: ort::InMemorySession<'static> = SessionBuilder::new(&_ENVIRONMENT)
-        .unwrap()
-        .with_optimization_level(GraphOptimizationLevel::Level3)
-        .unwrap()
-        .with_parallel_execution(true)
-        .unwrap()
-        .with_intra_threads(4)
-        .unwrap()
-        .with_memory_pattern(true)
-        .unwrap()
-        .with_model_from_memory(MODEL_BYTES)
-        .unwrap();
+#[inline(always)]
+fn is_diacritic_char(c: char) -> bool {
+    ARABIC_DIACRITICS.contains(&c)
 }
 
-pub fn do_tashkeel(text: String) -> String {
-    let input_sent: Vec<char> = text
-        .chars()
-        .filter(|c| !HARAKAT_CHARS.contains(c))
-        .collect();
-    let mut input_ids: Vec<f32> = input_sent
-        .iter()
-        .map(|c| {
-            INPUT_VOCAB_TO_INT
-                .get(&c.to_string())
-                .unwrap_or(&UNK_INPUT_ID)
-        })
-        .map(|id| *id as f32)
-        .collect();
-    input_ids.resize(MAX_INPUT_CHARS, 0.0);
-    let input_array = Array2::<f32>::from_shape_vec((1, input_ids.len()), input_ids).unwrap();
+fn extract_chars_and_diacritics(input_text: &str) -> (String, Vec<String>) {
+    let input_text = input_text.trim_start_matches(is_diacritic_char);
 
-    let outputs: Vec<DynOrtTensor<ndarray::Dim<ndarray::IxDynImpl>>> = ORT_SESSION
-        .run([InputTensor::from_array(input_array.into_dyn())])
-        .unwrap();
-    let logets: OrtOwnedTensor<f32, _> = outputs[0].try_extract().unwrap();
+    let mut clean_chars = String::new();
+    let mut diacritics = Vec::new();
 
-    let mut predicted_herakats = logets
-        .view()
-        .rows()
-        .into_iter()
-        .map(|row| row.argmax().unwrap())
-        .filter_map(|idx| {
-            let prediction = OUTPUT_INT_TO_VOCAB.get(&idx).unwrap();
-            if prediction == PAD_STR {
-                None
-            } else {
-                Some(prediction.as_str())
-            }
-        })
-        .collect::<Vec<&str>>();
-    predicted_herakats.resize(input_sent.len(), "");
-    combine_text_with_harakat(input_sent, predicted_herakats)
-}
-
-fn combine_text_with_harakat(input_sent: Vec<char>, output_sent: Vec<&str>) -> String {
-    let mut text = String::new();
-    for (character, haraka) in input_sent.iter().zip(output_sent.iter()) {
-        if INVALID_HARAKA.contains(haraka) {
-            text.push(*character);
+    let mut pending_diac = String::with_capacity(2);
+    input_text.chars().chain(iter::once(' ')).for_each(|c| {
+        if is_diacritic_char(c) {
+            pending_diac.push(c);
         } else {
-            text.push(*character);
-            text.push_str(haraka);
+            clean_chars.push(c);
+            diacritics.push(std::mem::take(&mut pending_diac));
+        }
+    });
+
+    clean_chars.pop().unwrap();
+    diacritics.remove(0);
+    (clean_chars, diacritics)
+}
+
+fn to_valid_chars(input: impl Iterator<Item = char>) -> (String, HashSet<char>) {
+    let mut valid = String::new();
+    let mut invalid = HashSet::new();
+    for c in input {
+        if INPUT_ID_MAP.contains_key(&c) {
+            valid.push(c);
+        } else {
+            invalid.insert(c);
         }
     }
-    text
+    (valid, invalid)
+}
+
+fn input_to_ids(input: impl Iterator<Item = char>) -> Vec<i64> {
+    Vec::from_iter(
+        iter::once(INPUT_ID_MAP[&SOS])
+            .chain(input.map(|c| INPUT_ID_MAP[&c]))
+            .chain(iter::once(INPUT_ID_MAP[&EOS])),
+    )
+}
+
+fn target_to_diacritics(target_ids: impl Iterator<Item = u8>) -> Vec<String> {
+    Vec::from_iter(
+        target_ids
+            .filter(|id| !TARGET_META_CHAR_IDS.contains(id))
+            .map(|diac_id| &TARGET_ID_MAP[&diac_id])
+            .cloned(),
+    )
+}
+
+fn annotate_text_with_diacritics(
+    input: &str,
+    diacritics: Vec<String>,
+    removed_chars: HashSet<char>,
+) -> String {
+    let mut output = String::new();
+    let mut diac_iter = diacritics.iter();
+    for c in input.chars() {
+        if removed_chars.contains(&c) {
+            output.push(c);
+        } else {
+            output.push(c);
+            let diac = diac_iter.next().unwrap();
+            output.push_str(diac);
+        }
+    }
+    output
+}
+
+fn annotate_text_with_diacritics_taskeen(
+    input: &str,
+    diacritics: Vec<String>,
+    removed_chars: HashSet<char>,
+    logits: Vec<f32>,
+    taskeen_threshold: Option<f32>,
+) -> String {
+    let taskeen_threshold = taskeen_threshold.unwrap();
+    let mut output = String::new();
+    let mut diac_iter = diacritics.iter().zip(logits);
+    let mut next_char_iter = input.chars();
+    next_char_iter.next();
+    let sukoon = unsafe { char::from_u32_unchecked(1618u32) };
+    for this_char in input.chars() {
+        if removed_chars.contains(&this_char) {
+            output.push(this_char);
+        } else {
+            let (diacritic, logit) = diac_iter.next().unwrap();
+            output.push(this_char);
+            if diacritic.is_empty() {
+                continue;
+            }
+            if logit > taskeen_threshold {
+                output.push_str(diacritic);
+                continue;
+            }
+            let next_char = next_char_iter.next();
+            if next_char.is_some() && SENTENCE_BOUNDRIES.contains(&next_char.unwrap()) {
+                output.push(sukoon);
+                continue;
+            }
+            output.push_str(diacritic);
+        }
+    }
+    output
+}
+
+pub fn do_tashkeel(
+    engine: &impl InferenceEngine,
+    text: &str,
+    taskeen_threshold: Option<f32>,
+) -> LibtashkeelResult<String> {
+    let text = text.trim();
+
+    if text.chars().count() > CHAR_LIMIT {
+        return Err(LibtashkeelError::InputTooLong(320));
+    }
+
+    let (text, _diacritics) = extract_chars_and_diacritics(text);
+    let (input_text, removed_chars) = to_valid_chars(text.chars().take(CHAR_LIMIT));
+
+    let input_ids = input_to_ids(input_text.chars());
+    let seq_length = input_ids.len();
+
+    let timer = std::time::Instant::now();
+    let (target_ids, logits) = engine.infer(input_ids, seq_length)?;
+    let inference_ms = timer.elapsed().as_millis() as f32;
+    log::info!("Inference time: {} ms", inference_ms);
+
+    let diacritics = target_to_diacritics(target_ids.into_iter());
+    let final_text = if taskeen_threshold.is_none() {
+        annotate_text_with_diacritics(&text, diacritics, removed_chars)
+    } else {
+        annotate_text_with_diacritics_taskeen(
+            &text,
+            diacritics,
+            removed_chars,
+            logits,
+            taskeen_threshold,
+        )
+    };
+
+    Ok(final_text)
 }
 
 // ==============================
@@ -125,14 +217,70 @@ fn combine_text_with_harakat(input_sent: Vec<char>, output_sent: Vec<&str>) -> S
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_it_works_as_expected() {
-        let text = "مرحبا";
+    static INFERENCE_ENGINE: Lazy<DynamicInferenceEngine> =
+        Lazy::new(|| create_inference_engine(Some("./data/tract/model.tar")).unwrap());
 
-        let expected = "مَرْحَبًا";
-        let tashkeeled = do_tashkeel(text.to_string());
+    #[test]
+    fn test_extract_diacritics_when_empty() {
+        let (chars, diacritics) = extract_chars_and_diacritics("");
+        assert_eq!(chars.is_empty(), true);
+        assert_eq!(diacritics.is_empty(), true);
+    }
+
+    #[test]
+    fn test_extract_diacritics() {
+        let text = "بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ";
+        let (chars, diacritics) = extract_chars_and_diacritics(text);
+
+        assert_eq!(chars.chars().count(), diacritics.len());
+
+        assert_eq!(chars.chars().nth(0), Some('ب'));
+        assert_eq!(diacritics[0], "ِ");
+
+        assert_eq!(chars.chars().nth(6), Some('ل'));
+        assert_eq!(diacritics[6], "َّ");
+    }
+
+    #[test]
+    fn test_basic_tashkeel() -> LibtashkeelResult<()> {
+        let text = "بسم الله الرحمن الرحيم";
+
+        let expected = "بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ";
+        let tashkeeled = do_tashkeel(&*INFERENCE_ENGINE, text, None)?;
 
         assert_ne!(tashkeeled, text);
         assert_eq!(tashkeeled, expected);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_exceeds_char_limit() -> LibtashkeelResult<()> {
+        let long_text = "كتب الأستاذ العقاد في أبريل ١٩٢٧م: «إن في كل أمةٍ لغة كتابةٍ ولغة حديث، وفي كل أمةٍ لهجة تهذيبٍ ولهجة ابتذال، وفي كل أمة كلام١ له قواعد وأصول وكلام لا قواعد له ولا أصول، وسيظل الحال على هذا ما بقيت لغة وما بقي ناسٌ يتمايزون في المدارك والأذواق.»٢ وفي الأربعينيات من القرن الماضي كتب د. علي عبد الواحد وافي: «فاختلاف لغة الكتابة عن لغة التخاطب ليس إذن أمرًا شاذًّا حتى نلتمس علاجًا له، بل هو السُّنة الطبيعية في اللغات، ولن تجد لسُنة الله تبديلًا.»٣";
+        let result = do_tashkeel(&*INFERENCE_ENGINE, long_text, None);
+        assert!(result.is_err());
+        Ok(())
+    }
+    #[test]
+    fn test_taskeen() -> LibtashkeelResult<()> {
+        let poem = [
+            "من ذا يقارن حسنك المغري بصيف قد تجلى.",
+            "وفنون سحرك قد بدت في ناظري أسمى وأغلى.",
+            "تجني الرياح العاتيات على البراعم وهي جذلى.",
+            "والصيف يمضي مسرعا إذ عقده المحدود ولى.",
+        ]
+        .join(" ");
+
+        let no_taskeen = do_tashkeel(&*INFERENCE_ENGINE, &poem, None)?;
+        let taskeen = do_tashkeel(&*INFERENCE_ENGINE, &poem, Some(0.99999999))?;
+
+        assert_eq!(taskeen == no_taskeen, false);
+
+        let sukoon = char::from_u32(0x652).unwrap();
+        let no_taskeen_sukoon_count = no_taskeen.chars().filter(|c| c == &sukoon).count();
+        let taskeen_sukoon_count = taskeen.chars().filter(|c| c == &sukoon).count();
+        assert_eq!(taskeen_sukoon_count > no_taskeen_sukoon_count, true);
+
+        Ok(())
     }
 }
