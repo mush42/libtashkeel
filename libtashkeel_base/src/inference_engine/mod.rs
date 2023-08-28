@@ -1,5 +1,5 @@
 use crate::{InferenceEngine, LibtashkeelResult};
-use std::path::Path;
+use std::path::PathBuf;
 
 pub struct DynamicInferenceEngine(Box<dyn InferenceEngine + Send + Sync>);
 
@@ -23,8 +23,8 @@ impl InferenceEngine for DynamicInferenceEngine {
 mod tract;
 
 #[cfg(feature = "tract")]
-pub fn create_inference_engine<P: AsRef<Path> + std::fmt::Display>(
-    model_path: Option<P>,
+pub fn create_inference_engine(
+    model_path: Option<PathBuf>,
 ) -> LibtashkeelResult<DynamicInferenceEngine> {
     use self::tract::TractEngine;
 
@@ -32,7 +32,7 @@ pub fn create_inference_engine<P: AsRef<Path> + std::fmt::Display>(
 
     match model_path {
         Some(path) => {
-            log::info!("Loading model from path: `{}`", path.to_string());
+            log::info!("Loading model from path: `{}`", path.display());
             let engine = TractEngine::from_path(&path)?;
             Ok(DynamicInferenceEngine::new(Box::new(engine)))
         }
@@ -48,8 +48,8 @@ pub fn create_inference_engine<P: AsRef<Path> + std::fmt::Display>(
 mod ort;
 
 #[cfg(feature = "ort")]
-pub fn create_inference_engine<P: AsRef<Path> + std::fmt::Display>(
-    model_path: Option<P>,
+pub fn create_inference_engine(
+    model_path: Option<PathBuf>,
 ) -> LibtashkeelResult<DynamicInferenceEngine> {
     use self::ort::{OrtEngineWithModelBytes, OrtEngineWithModelPath};
 
