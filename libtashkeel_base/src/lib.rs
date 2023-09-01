@@ -218,7 +218,7 @@ mod tests {
     use super::*;
 
     static INFERENCE_ENGINE: Lazy<DynamicInferenceEngine> =
-        Lazy::new(|| create_inference_engine(Some("./data/tract/model.tar")).unwrap());
+        Lazy::new(|| create_inference_engine(None).unwrap());
 
     #[test]
     fn test_extract_diacritics_when_empty() {

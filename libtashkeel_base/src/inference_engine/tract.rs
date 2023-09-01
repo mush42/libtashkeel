@@ -13,7 +13,7 @@ impl From<tract_data::anyhow::Error> for LibtashkeelError {
 }
 
 type TractModelType = SimplePlan<TypedFact, Box<dyn TypedOp>, Graph<TypedFact, Box<dyn TypedOp>>>;
-const MODEL_BYTES: &[u8] = b""; //include_bytes!("../../data/tract/model.tgz");
+const MODEL_BYTES: &[u8] = include_bytes!("../../data/tract/model.tgz");
 
 pub struct TractEngine(TractModelType);
 
@@ -21,6 +21,8 @@ impl TractEngine {
     pub fn from_bytes(model_bytes: &'static [u8]) -> LibtashkeelResult<Self> {
         let model_bytes = Bytes::from_static(model_bytes);
         let model = nnef()
+            .with_tract_core()
+            .with_tract_resource()
             .model_for_read(&mut model_bytes.reader())?
             .into_optimized()?
             .into_compact()?
