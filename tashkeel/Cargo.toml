@@ -8,7 +8,7 @@ edition = "2021"
 [features]
 ort = ["libtashkeel_base/ort"]
 tract = ["libtashkeel_base/tract"]
-default = ["tract"]
+default = ["ort"]
 
 [dependencies]
 anyhow = "1.0.72"

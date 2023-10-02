@@ -11,10 +11,8 @@ pub use self::inference_engine::create_inference_engine;
 
 pub type LibtashkeelResult<T> = Result<T, LibtashkeelError>;
 
-pub const CHAR_LIMIT: usize = 300;
+pub const CHAR_LIMIT: usize = 2400;
 const PAD: char = '_';
-const SOS: char = '^';
-const EOS: char = '$';
 static INPUT_ID_MAP: Lazy<HashMap<char, i64>> =
     Lazy::new(|| serde_json::from_str(include_str!("../data/input_id_map.json")).unwrap());
 static TARGET_ID_MAP: Lazy<HashMap<u8, String>> = Lazy::new(|| {
@@ -24,7 +22,7 @@ static TARGET_ID_MAP: Lazy<HashMap<u8, String>> = Lazy::new(|| {
 });
 static TARGET_META_CHAR_IDS: Lazy<HashSet<u8>> = Lazy::new(|| {
     // Fixme: asumes that input ids are the same as target ids
-    HashSet::from_iter([PAD, SOS, EOS].map(|c| INPUT_ID_MAP[&c]).map(|i| i as u8))
+    HashSet::from_iter([PAD].map(|c| INPUT_ID_MAP[&c]).map(|i| i as u8))
 });
 static ARABIC_DIACRITICS: Lazy<HashSet<char>> = Lazy::new(|| {
     HashSet::from_iter(
@@ -102,11 +100,7 @@ fn to_valid_chars(input: impl Iterator<Item = char>) -> (String, HashSet<char>) 
 }
 
 fn input_to_ids(input: impl Iterator<Item = char>) -> Vec<i64> {
-    Vec::from_iter(
-        iter::once(INPUT_ID_MAP[&SOS])
-            .chain(input.map(|c| INPUT_ID_MAP[&c]))
-            .chain(iter::once(INPUT_ID_MAP[&EOS])),
-    )
+    Vec::from_iter(input.map(|c| INPUT_ID_MAP[&c]))
 }
 
 fn target_to_diacritics(target_ids: impl Iterator<Item = u8>) -> Vec<String> {
@@ -251,14 +245,6 @@ mod tests {
         assert_ne!(tashkeeled, text);
         assert_eq!(tashkeeled, expected);
 
-        Ok(())
-    }
-
-    #[test]
-    fn test_exceeds_char_limit() -> LibtashkeelResult<()> {
-        let long_text = "كتب الأستاذ العقاد في أبريل ١٩٢٧م: «إن في كل أمةٍ لغة كتابةٍ ولغة حديث، وفي كل أمةٍ لهجة تهذيبٍ ولهجة ابتذال، وفي كل أمة كلام١ له قواعد وأصول وكلام لا قواعد له ولا أصول، وسيظل الحال على هذا ما بقيت لغة وما بقي ناسٌ يتمايزون في المدارك والأذواق.»٢ وفي الأربعينيات من القرن الماضي كتب د. علي عبد الواحد وافي: «فاختلاف لغة الكتابة عن لغة التخاطب ليس إذن أمرًا شاذًّا حتى نلتمس علاجًا له، بل هو السُّنة الطبيعية في اللغات، ولن تجد لسُنة الله تبديلًا.»٣";
-        let result = do_tashkeel(&*INFERENCE_ENGINE, long_text, None);
-        assert!(result.is_err());
         Ok(())
     }
     #[test]

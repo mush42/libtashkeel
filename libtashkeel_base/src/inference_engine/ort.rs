@@ -54,7 +54,7 @@ pub struct OrtEngineWithModelBytes<'a>(ort::InMemorySession<'a>);
 
 impl<'a> OrtEngineWithModelBytes<'a> {
     pub fn from_bytes(model_bytes: &'a [u8]) -> LibtashkeelResult<OrtEngineWithModelBytes<'a>> {
-        let session = SessionBuilder::new(&*ORT_ENV)?
+        let session = SessionBuilder::new(&ORT_ENV)?
             .with_optimization_level(GraphOptimizationLevel::Level3)?
             .with_allocator(ort::AllocatorType::Arena)?
             .with_memory_pattern(true)?
@@ -65,6 +65,7 @@ impl<'a> OrtEngineWithModelBytes<'a> {
 
         Ok(Self(session))
     }
+    #[allow(dead_code)]
     pub fn from_session(
         session: ort::InMemorySession<'a>,
     ) -> LibtashkeelResult<OrtEngineWithModelBytes<'a>> {
@@ -89,7 +90,7 @@ pub struct OrtEngineWithModelPath(ort::Session);
 
 impl OrtEngineWithModelPath {
     pub fn from_path(model_path: impl AsRef<Path>) -> LibtashkeelResult<Self> {
-        let session = SessionBuilder::new(&*ORT_ENV)?
+        let session = SessionBuilder::new(&ORT_ENV)?
             .with_optimization_level(GraphOptimizationLevel::Level3)?
             .with_allocator(ort::AllocatorType::Arena)?
             .with_memory_pattern(true)?
@@ -100,6 +101,7 @@ impl OrtEngineWithModelPath {
 
         Ok(Self(session))
     }
+    #[allow(dead_code)]
     pub fn from_session(session: ort::Session) -> LibtashkeelResult<Self> {
         Ok(Self(session))
     }
