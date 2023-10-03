@@ -8,7 +8,7 @@ edition = "2021"
 [features]
 default = ["ort"]
 ort = ["dep:ort"]
-tract = ["bytes", "tract-nnef"]
+tract = ["bytes"]
 
 [dependencies]
 bytes = { version = "1.0.1", optional = true }
@@ -20,9 +20,7 @@ serde_json = "1.0.89"
 thiserror = "1.0.47"
 
 [dependencies.tract-nnef]
-git = "https://github.com/sonos/tract/"
-rev = "77231e2aea26efa71fc657f0b1f96b1a35bcc916"
-version = "0.20.19-pre"
+version = "0.20.18"
 optional = true
 
 [dependencies.ort]
