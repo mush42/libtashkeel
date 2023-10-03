@@ -11,7 +11,7 @@ pub use self::inference_engine::create_inference_engine;
 
 pub type LibtashkeelResult<T> = Result<T, LibtashkeelError>;
 
-pub const CHAR_LIMIT: usize = 2400;
+pub const CHAR_LIMIT: usize = 12000;
 const PAD: char = '_';
 static INPUT_ID_MAP: Lazy<HashMap<char, i64>> =
     Lazy::new(|| serde_json::from_str(include_str!("../data/input_id_map.json")).unwrap());
@@ -176,7 +176,7 @@ pub fn do_tashkeel(
     let text = text.trim();
 
     if text.chars().count() > CHAR_LIMIT {
-        return Err(LibtashkeelError::InputTooLong(320));
+        return Err(LibtashkeelError::InputTooLong(CHAR_LIMIT));
     }
 
     let (text, _diacritics) = extract_chars_and_diacritics(text);
@@ -185,25 +185,28 @@ pub fn do_tashkeel(
     let input_ids = input_to_ids(input_text.chars());
     let seq_length = input_ids.len();
 
-    let timer = std::time::Instant::now();
-    let (target_ids, logits) = engine.infer(input_ids, seq_length)?;
-    let inference_ms = timer.elapsed().as_millis() as f32;
-    log::info!("Inference time: {} ms", inference_ms);
-
-    let diacritics = target_to_diacritics(target_ids.into_iter());
-    let final_text = if taskeen_threshold.is_none() {
-        annotate_text_with_diacritics(&text, diacritics, removed_chars)
+    if seq_length > 0 {
+        let timer = std::time::Instant::now();
+        let (target_ids, logits) = engine.infer(input_ids, seq_length)?;
+        let inference_ms = timer.elapsed().as_millis() as f32;
+        log::info!("Inference time: {} ms", inference_ms);
+        let diacritics = target_to_diacritics(target_ids.into_iter());
+        let final_text = if taskeen_threshold.is_none() {
+            annotate_text_with_diacritics(&text, diacritics, removed_chars)
+        } else {
+            annotate_text_with_diacritics_taskeen(
+                &text,
+                diacritics,
+                removed_chars,
+                logits,
+                taskeen_threshold,
+            )
+        };
+        Ok(final_text)
     } else {
-        annotate_text_with_diacritics_taskeen(
-            &text,
-            diacritics,
-            removed_chars,
-            logits,
-            taskeen_threshold,
-        )
-    };
-
-    Ok(final_text)
+        log::info!("Inference time: {} ms", 0.0);
+        Ok(text)
+    }
 }
 
 // ==============================
@@ -258,7 +261,7 @@ mod tests {
         .join(" ");
 
         let no_taskeen = do_tashkeel(&*INFERENCE_ENGINE, &poem, None)?;
-        let taskeen = do_tashkeel(&*INFERENCE_ENGINE, &poem, Some(0.99999999))?;
+        let taskeen = do_tashkeel(&*INFERENCE_ENGINE, &poem, Some(0.80))?;
 
         assert_eq!(taskeen == no_taskeen, false);
 

@@ -63,9 +63,6 @@ fn tashkeel_main(
     } else {
         let mut diacritized_lines = String::new();
         for input_line in input_text.lines() {
-            if input_line.trim().is_empty() {
-                continue
-            }
             let input = String::from_iter(input_line.chars().take(CHAR_LIMIT));
             let diacritized_line = do_tashkeel(model, &input, taskeen_threshold)?;
             if args.output_file.is_none() {
