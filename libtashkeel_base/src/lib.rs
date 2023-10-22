@@ -189,7 +189,7 @@ pub fn do_tashkeel(
         let timer = std::time::Instant::now();
         let (target_ids, logits) = engine.infer(input_ids, seq_length)?;
         let inference_ms = timer.elapsed().as_millis() as f32;
-        log::info!("Inference time: {} ms", inference_ms);
+        log::debug!("Inference time: {} ms", inference_ms);
         let diacritics = target_to_diacritics(target_ids.into_iter());
         let final_text = if taskeen_threshold.is_none() {
             annotate_text_with_diacritics(&text, diacritics, removed_chars)
@@ -204,7 +204,7 @@ pub fn do_tashkeel(
         };
         Ok(final_text)
     } else {
-        log::info!("Inference time: {} ms", 0.0);
+        log::debug!("Inference time: {} ms", 0.0);
         Ok(text)
     }
 }

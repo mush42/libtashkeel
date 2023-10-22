@@ -1,7 +1,7 @@
 use crate::{InferenceEngine, LibtashkeelError, LibtashkeelResult, CHAR_LIMIT};
 use bytes::{Buf, Bytes};
 use std::path::Path;
-use tract_nnef::{nnef, prelude::*};
+use tract_onnx::prelude::*;
 
 impl From<tract_data::anyhow::Error> for LibtashkeelError {
     fn from(other: tract_data::anyhow::Error) -> Self {
@@ -13,16 +13,14 @@ impl From<tract_data::anyhow::Error> for LibtashkeelError {
 }
 
 type TractModelType = SimplePlan<TypedFact, Box<dyn TypedOp>, Graph<TypedFact, Box<dyn TypedOp>>>;
-const MODEL_BYTES: &[u8] = include_bytes!("../../data/tract/model.tgz");
+const MODEL_BYTES: &[u8] = include_bytes!("../../data/tract/model.onnx");
 
 pub struct TractEngine(TractModelType);
 
 impl TractEngine {
     pub fn from_bytes(model_bytes: &'static [u8]) -> LibtashkeelResult<Self> {
         let model_bytes = Bytes::from_static(model_bytes);
-        let model = nnef()
-            .with_tract_core()
-            .with_tract_resource()
+        let model = tract_onnx::onnx()
             .model_for_read(&mut model_bytes.reader())?
             .into_optimized()?
             .into_compact()?
@@ -30,12 +28,10 @@ impl TractEngine {
         Ok(Self(model))
     }
     pub fn from_path(model_path: impl AsRef<Path>) -> LibtashkeelResult<Self> {
-        let model = nnef()
-            .with_tract_core()
-            .with_tract_resource()
+        let model = tract_onnx::onnx()
             .model_for_path(model_path)?
             .into_optimized()?
-            // .into_compact()?
+            .into_compact()?
             .into_runnable()?;
         Ok(Self(model))
     }
