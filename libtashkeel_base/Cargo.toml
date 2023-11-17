@@ -33,6 +33,6 @@ features = ["load-dynamic"]
 optional = true
 
 [dev-dependencies.ort]
-version = "1.16.0"
+version = "1.16.3"
 default-features = false
 features = ["load-dynamic"]
