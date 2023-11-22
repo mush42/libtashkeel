@@ -27,12 +27,12 @@ version = "0.20.20"
 optional = true
 
 [dependencies.ort]
-version = "1.16.2"
+version = "2.0.0-alpha.1"
 default-features = false
-features = ["load-dynamic"]
+features = ["load-dynamic", "ndarray"]
 optional = true
 
 [dev-dependencies.ort]
-version = "1.16.3"
+version = "2.0.0-alpha.1"
 default-features = false
-features = ["load-dynamic"]
+features = ["load-dynamic", "ndarray"]

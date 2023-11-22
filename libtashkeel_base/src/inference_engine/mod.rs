@@ -51,19 +51,19 @@ mod ort;
 pub fn create_inference_engine(
     model_path: Option<PathBuf>,
 ) -> LibtashkeelResult<DynamicInferenceEngine> {
-    use self::ort::{OrtEngineWithModelBytes, OrtEngineWithModelPath};
+    use self::ort::OrtEngine;
 
     log::info!("Built with `ORT` inference backend.");
 
     match model_path {
         Some(path) => {
             log::info!("Loading model from path: `{}`", path.display());
-            let engine = OrtEngineWithModelPath::from_path(&path)?;
+            let engine = OrtEngine::from_path(&path)?;
             Ok(DynamicInferenceEngine::new(Box::new(engine)))
         }
         None => {
             log::info!("Using bundled model");
-            let engine = OrtEngineWithModelBytes::with_bundled_model()?;
+            let engine = OrtEngine::with_bundled_model()?;
             Ok(DynamicInferenceEngine::new(Box::new(engine)))
         }
     }
