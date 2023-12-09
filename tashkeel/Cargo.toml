@@ -11,7 +11,6 @@ documentation = "https://github.com/mush42/libtashkeel"
 [features]
 default = ["ort"]
 ort = ["libtashkeel_base/ort"]
-tract = ["libtashkeel_base/tract"]
 ort-dylib = ["libtashkeel_base/ort-dylib"]
 
 [dependencies]

@@ -19,31 +19,6 @@ impl InferenceEngine for DynamicInferenceEngine {
     }
 }
 
-#[cfg(feature = "tract")]
-mod tract;
-
-#[cfg(feature = "tract")]
-pub fn create_inference_engine(
-    model_path: Option<PathBuf>,
-) -> LibtashkeelResult<DynamicInferenceEngine> {
-    use self::tract::TractEngine;
-
-    log::info!("Built with `Tract` inference backend.");
-
-    match model_path {
-        Some(path) => {
-            log::info!("Loading model from path: `{}`", path.display());
-            let engine = TractEngine::from_path(&path)?;
-            Ok(DynamicInferenceEngine::new(Box::new(engine)))
-        }
-        None => {
-            log::info!("Using bundled model");
-            let engine = TractEngine::with_bundled_model()?;
-            Ok(DynamicInferenceEngine::new(Box::new(engine)))
-        }
-    }
-}
-
 #[cfg(feature = "ort")]
 mod ort;
 

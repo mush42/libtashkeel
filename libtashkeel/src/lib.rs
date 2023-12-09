@@ -97,7 +97,7 @@ fn do_init_library(model_path: Option<PathBuf>) -> LibtashkeelFFIResult<()> {
     {
         Err(LibtashkeelFFIError(
             ErrorCodes::UNKNOWN_ERROR,
-            "Unexpected error. Failed to init global inference_engine instance with `tract`."
+            "Unexpected error. Failed to init global inference_engine instance."
                 .to_string(),
         ))
     } else {

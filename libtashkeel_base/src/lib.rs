@@ -6,7 +6,7 @@ use thiserror::Error;
 mod inference_engine;
 pub use self::inference_engine::DynamicInferenceEngine;
 
-#[cfg(any(feature = "ort", feature = "tract"))]
+#[cfg(any(feature = "ort"))]
 pub use self::inference_engine::create_inference_engine;
 
 pub type LibtashkeelResult<T> = Result<T, LibtashkeelError>;

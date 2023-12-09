@@ -13,9 +13,8 @@ name = "pylibtashkeel"
 crate-type = ["cdylib"]
 
 [features]
-ort = ["libtashkeel_base/ort"]
-tract = ["libtashkeel_base/tract"]
 default = ["ort"]
+ort = ["libtashkeel_base/ort"]
 ort-dylib = ["libtashkeel_base/ort-dylib"]
 
 [dependencies.pyo3]
