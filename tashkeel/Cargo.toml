@@ -9,9 +9,10 @@ repository = "https://github.com/mush42/libtashkeel"
 documentation = "https://github.com/mush42/libtashkeel"
 
 [features]
+default = ["ort"]
 ort = ["libtashkeel_base/ort"]
 tract = ["libtashkeel_base/tract"]
-default = ["ort"]
+ort-dylib = ["libtashkeel_base/ort-dylib"]
 
 [dependencies]
 anyhow = "1.0.72"

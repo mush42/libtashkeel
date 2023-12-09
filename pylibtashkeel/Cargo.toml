@@ -16,6 +16,7 @@ crate-type = ["cdylib"]
 ort = ["libtashkeel_base/ort"]
 tract = ["libtashkeel_base/tract"]
 default = ["ort"]
+ort-dylib = ["libtashkeel_base/ort-dylib"]
 
 [dependencies.pyo3]
 version = "0.18.1"
