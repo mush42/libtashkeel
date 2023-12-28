@@ -23,9 +23,9 @@ serde_json = "1.0.89"
 thiserror = "1.0.47"
 
 [dependencies.ort]
-version = "2.0.0-alpha.2"
+version = "2.0.0-alpha.3"
 
 optional = true
 
 [dev-dependencies.ort]
-version = "2.0.0-alpha.2"
+version = "2.0.0-alpha.3"
