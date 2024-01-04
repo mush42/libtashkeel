@@ -14,7 +14,10 @@ pub type LibtashkeelResult<T> = Result<T, LibtashkeelError>;
 pub const CHAR_LIMIT: usize = 12000;
 const PAD: char = '_';
 const NUMERAL_SYMBOL: char = '#';
-const NUMERALS: &[char] = &['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+const NUMERALS: &[char] = &[
+    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+    '٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩',
+];
 static INPUT_ID_MAP: Lazy<HashMap<char, i64>> =
     Lazy::new(|| serde_json::from_str(include_str!("../data/input_id_map.json")).unwrap());
 static TARGET_ID_MAP: Lazy<HashMap<u8, String>> = Lazy::new(|| {
