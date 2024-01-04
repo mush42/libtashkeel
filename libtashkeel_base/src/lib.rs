@@ -13,6 +13,8 @@ pub type LibtashkeelResult<T> = Result<T, LibtashkeelError>;
 
 pub const CHAR_LIMIT: usize = 12000;
 const PAD: char = '_';
+const NUMERAL_SYMBOL: char = '#';
+const NUMERALS: &[char] = &['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
 static INPUT_ID_MAP: Lazy<HashMap<char, i64>> =
     Lazy::new(|| serde_json::from_str(include_str!("../data/input_id_map.json")).unwrap());
 static TARGET_ID_MAP: Lazy<HashMap<u8, String>> = Lazy::new(|| {
@@ -92,6 +94,8 @@ fn to_valid_chars(input: impl Iterator<Item = char>) -> (String, HashSet<char>) 
     for c in input {
         if INPUT_ID_MAP.contains_key(&c) {
             valid.push(c);
+        } else if NUMERALS.contains(&c) {
+            valid.push(NUMERAL_SYMBOL);
         } else {
             invalid.insert(c);
         }
@@ -180,7 +184,7 @@ pub fn do_tashkeel(
     }
 
     let (text, _diacritics) = extract_chars_and_diacritics(text);
-    let (input_text, removed_chars) = to_valid_chars(text.chars().take(CHAR_LIMIT));
+    let (input_text, removed_chars) = to_valid_chars(text.chars());
 
     let input_ids = input_to_ids(input_text.chars());
     let seq_length = input_ids.len();
@@ -244,6 +248,7 @@ mod tests {
 
         let expected = "بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ";
         let tashkeeled = do_tashkeel(&*INFERENCE_ENGINE, text, None)?;
+        println!("Tashkeel: {}", tashkeeled);
 
         assert_ne!(tashkeeled, text);
         assert_eq!(tashkeeled, expected);
