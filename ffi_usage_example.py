@@ -7,6 +7,14 @@ import os
 # Change this based on library path
 LIBTASHKEEL_PATH = os.path.abspath("../target/debug/libtashkeel.dll")
 
+# Initialize the library
+lib = ctypes.cdll.LoadLibrary(LIBTASHKEEL_PATH)
+# Specify function input/return types
+lib.libtashkeelTashkeel.argtypes = (ctypes.c_char_p, LibtashkeelError)
+lib.libtashkeelTashkeel.restype = ctypes.c_void_p
+lib.libtashkeel_free_string.argtypes = (ctypes.c_void_p, )
+
+
 class LibtashkeelError(ctypes.Structure):
     _fields_ = [
         ("err_code", ctypes.c_int32),
@@ -31,13 +39,6 @@ class LibtashkeelError(ctypes.Structure):
 
     def __free_err_msg_string(self):
         lib.libtashkeel_free_string(self.err_msg_ptr)
-
-
-lib = ctypes.cdll.LoadLibrary(LIBTASHKEEL_PATH)
-
-lib.libtashkeelTashkeel.argtypes = (ctypes.c_char_p, LibtashkeelError)
-lib.libtashkeelTashkeel.restype = ctypes.c_void_p
-lib.libtashkeel_free_string.argtypes = (ctypes.c_void_p, )
 
 
 def tashkeel(text):
