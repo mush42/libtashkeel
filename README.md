@@ -8,8 +8,7 @@ The library uses models trained mainly on MSA data, from [Hareef](https://github
 
 ## Getting Libtashkeel
 
-You can find prebuilt binaries in the [releases tab] (https://github.com/mush42/libtashkeel).
-You can also build the project yourself, see the **Building** section.
+You need to build the project yourself, see the **Building** section for a step-by-step guide.
 
 ## Usage
 
@@ -23,8 +22,10 @@ The API consists of a single entry point for diacritizing a **utf-8 ** encoded s
 
 **Python** bindings are also provided.
 
+After building the wheels (see the **Building** section), install the wheel using `pip`:
+
 ```bash
-pip install pylibtashkeel
+pip install ./target/wheels/pylibtashkeel*.whl
 ```
 
 and then:
