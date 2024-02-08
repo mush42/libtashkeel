@@ -1,7 +1,9 @@
 use ffi_support::{
     call_with_result, define_string_destructor, rust_string_to_c, ErrorCode, ExternError, FfiStr,
 };
-use libtashkeel_base::{create_inference_engine, do_tashkeel, DynamicInferenceEngine, LibtashkeelError};
+use libtashkeel_base::{
+    create_inference_engine, do_tashkeel, DynamicInferenceEngine, LibtashkeelError,
+};
 use once_cell::sync::OnceCell;
 use std::ffi::c_char;
 use std::path::PathBuf;
@@ -9,7 +11,6 @@ use std::sync::Once;
 
 static INFERENCE_ENGINE: OnceCell<DynamicInferenceEngine> = OnceCell::new();
 static INIT_LIBTASHKEEL: Once = Once::new();
-
 
 #[allow(non_snake_case)]
 mod ErrorCodes {
@@ -19,16 +20,16 @@ mod ErrorCodes {
     pub const UNKNOWN_ERROR: i32 = 99;
 }
 
-
 #[derive(Debug)]
 struct LibtashkeelFFIError(i32, String);
 
 impl From<LibtashkeelError> for LibtashkeelFFIError {
     fn from(other: LibtashkeelError) -> Self {
         let (code, message) = match other {
-            LibtashkeelError::InputTooLong(max_len) => {
-                (ErrorCodes::INPUT_TOO_LONG, format!("Input too long. Max length {}", max_len))
-            }
+            LibtashkeelError::InputTooLong(max_len) => (
+                ErrorCodes::INPUT_TOO_LONG,
+                format!("Input too long. Max length {}", max_len),
+            ),
             LibtashkeelError::InferenceError(msg) => (ErrorCodes::INFERENCE_ERROR, msg),
             LibtashkeelError::ModelLoadError(e) => (ErrorCodes::MODEL_LOAD_ERROR, e.to_string()),
         };
@@ -54,6 +55,7 @@ define_string_destructor!(libtashkeel_free_string);
 pub unsafe extern "C" fn libtashkeelTashkeel(
     text_ptr: FfiStr,
     taskeen_threshold: *const libc::c_float,
+    preprocessed: bool,
     out_error: &mut ExternError,
 ) -> *mut c_char {
     let text = text_ptr.into_string();
@@ -66,8 +68,12 @@ pub unsafe extern "C" fn libtashkeelTashkeel(
         INIT_LIBTASHKEEL.call_once(|| {
             do_init_library(None).unwrap();
         });
-        let diacritized_text =
-            ffi_do_tashkeel(INFERENCE_ENGINE.get().unwrap(), &text, taskeen_threshold)?;
+        let diacritized_text = ffi_do_tashkeel(
+            INFERENCE_ENGINE.get().unwrap(),
+            &text,
+            taskeen_threshold,
+            preprocessed,
+        )?;
         let retval = rust_string_to_c(diacritized_text);
         Ok::<*mut c_char, LibtashkeelFFIError>(retval)
     })
@@ -84,21 +90,18 @@ fn ffi_do_tashkeel(
     model: &DynamicInferenceEngine,
     text: &str,
     taskeen_threshold: Option<f32>,
+    preprocessed: bool,
 ) -> LibtashkeelFFIResult<String> {
-    Ok(do_tashkeel(model, text, taskeen_threshold)?)
+    Ok(do_tashkeel(model, text, taskeen_threshold, preprocessed)?)
 }
 
 fn do_init_library(model_path: Option<PathBuf>) -> LibtashkeelFFIResult<()> {
     INIT_LIBTASHKEEL.call_once(|| ());
     let engine = create_inference_engine(model_path)?;
-    if INFERENCE_ENGINE
-        .set(engine)
-        .is_err()
-    {
+    if INFERENCE_ENGINE.set(engine).is_err() {
         Err(LibtashkeelFFIError(
             ErrorCodes::UNKNOWN_ERROR,
-            "Unexpected error. Failed to init global inference_engine instance."
-                .to_string(),
+            "Unexpected error. Failed to init global inference_engine instance.".to_string(),
         ))
     } else {
         Ok(())

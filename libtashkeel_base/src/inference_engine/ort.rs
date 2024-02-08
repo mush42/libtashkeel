@@ -15,15 +15,17 @@ impl From<ort::Error> for LibtashkeelError {
 fn ort_session_run(
     session: &ort::Session,
     input_ids: Vec<i64>,
+    diac_ids: Vec<i64>,
     seq_length: usize,
 ) -> LibtashkeelResult<(Vec<u8>, Vec<f32>)> {
-    let input_ids =
-        Array2::<i64>::from_shape_vec((1, seq_length), input_ids).unwrap();
+    let input_ids = Array2::<i64>::from_shape_vec((1, seq_length), input_ids).unwrap();
+    let diac_ids = Array2::<i64>::from_shape_vec((1, seq_length), diac_ids).unwrap();
     let input_length = Array1::<i64>::from_iter([seq_length as i64]);
 
     let (target_ids, logits): (Vec<u8>, Vec<f32>) = {
         let inputs = vec![
             Value::from_array(input_ids).unwrap(),
+            Value::from_array(diac_ids).unwrap(),
             Value::from_array(input_length).unwrap(),
         ];
         let outputs = session.run(SessionInputs::from(inputs.as_slice()))?;
@@ -75,8 +77,9 @@ impl InferenceEngine for OrtEngine {
     fn infer(
         &self,
         input_ids: Vec<i64>,
+        diac_ids: Vec<i64>,
         seq_length: usize,
     ) -> LibtashkeelResult<(Vec<u8>, Vec<f32>)> {
-        ort_session_run(&self.0, input_ids, seq_length)
+        ort_session_run(&self.0, input_ids, diac_ids, seq_length)
     }
 }

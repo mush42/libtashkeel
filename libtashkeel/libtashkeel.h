@@ -28,7 +28,10 @@ struct ExternError {
 
 extern "C" {
 
-char *libtashkeelTashkeel(FfiStr text_ptr, const float *taskeen_threshold, ExternError *out_error);
+char *libtashkeelTashkeel(FfiStr text_ptr,
+                          const float *taskeen_threshold,
+                          bool preprocessed,
+                          ExternError *out_error);
 
 void libtashkeel_init(FfiStr model_path_ptr, ExternError *out_error);
 

@@ -1,4 +1,6 @@
 use once_cell::sync::Lazy;
+#[cfg(feature = "rayon")]
+use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::iter;
 use thiserror::Error;
@@ -6,7 +8,7 @@ use thiserror::Error;
 mod inference_engine;
 pub use self::inference_engine::DynamicInferenceEngine;
 
-#[cfg(any(feature = "ort"))]
+#[cfg(feature = "ort")]
 pub use self::inference_engine::create_inference_engine;
 
 pub type LibtashkeelResult<T> = Result<T, LibtashkeelError>;
@@ -15,8 +17,8 @@ pub const CHAR_LIMIT: usize = 12000;
 const PAD: char = '_';
 const NUMERAL_SYMBOL: char = '#';
 const NUMERALS: &[char] = &[
-    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-    '٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩',
+    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨',
+    '٩',
 ];
 static INPUT_ID_MAP: Lazy<HashMap<char, i64>> =
     Lazy::new(|| serde_json::from_str(include_str!("../data/input_id_map.json")).unwrap());
@@ -25,6 +27,8 @@ static TARGET_ID_MAP: Lazy<HashMap<u8, String>> = Lazy::new(|| {
         serde_json::from_str(include_str!("../data/target_id_map.json")).unwrap();
     reversed_mapping(&target_id_map)
 });
+static HINT_ID_MAP: Lazy<HashMap<String, i64>> =
+    Lazy::new(|| serde_json::from_str(include_str!("../data/hint_id_map.json")).unwrap());
 static TARGET_META_CHAR_IDS: Lazy<HashSet<u8>> = Lazy::new(|| {
     // Fixme: asumes that input ids are the same as target ids
     HashSet::from_iter([PAD].map(|c| INPUT_ID_MAP[&c]).map(|i| i as u8))
@@ -36,13 +40,14 @@ static ARABIC_DIACRITICS: Lazy<HashSet<char>> = Lazy::new(|| {
             .map(|i| unsafe { char::from_u32_unchecked(*i) }),
     )
 });
-static SENTENCE_BOUNDRIES: Lazy<HashSet<char>> =
-    Lazy::new(|| HashSet::from_iter(['.', '،', '؟', '!']));
+static NORMALIZED_DIAC_MAP: Lazy<HashMap<&str, &str>> =
+    Lazy::new(|| HashMap::from([("َّ", "َّ"), ("ًّ", "ًّ"), ("ُّ", "ُّ"), ("ٌّ", "ٌّ"), ("ِّ", "ِّ"), ("ٍّ", "ٍّ")]));
 
 pub trait InferenceEngine {
     fn infer(
         &self,
         input_ids: Vec<i64>,
+        diac_ids: Vec<i64>,
         seq_length: usize,
     ) -> LibtashkeelResult<(Vec<u8>, Vec<f32>)>;
 }
@@ -70,7 +75,10 @@ fn is_diacritic_char(c: char) -> bool {
     ARABIC_DIACRITICS.contains(&c)
 }
 
-fn extract_chars_and_diacritics(input_text: &str) -> (String, Vec<String>) {
+fn extract_chars_and_diacritics(
+    input_text: &str,
+    normalize_diacritics: bool,
+) -> (String, Vec<String>) {
     let input_text = input_text.trim_start_matches(is_diacritic_char);
 
     let mut clean_chars = String::new();
@@ -88,6 +96,19 @@ fn extract_chars_and_diacritics(input_text: &str) -> (String, Vec<String>) {
 
     clean_chars.pop().unwrap();
     diacritics.remove(0);
+
+    if normalize_diacritics {
+        for diac in diacritics.iter_mut() {
+            if !HINT_ID_MAP.contains_key(diac) {
+                if let Some(d) = NORMALIZED_DIAC_MAP.get(diac.as_str()) {
+                    *diac = d.to_string();
+                } else {
+                    *diac = "".into();
+                }
+            }
+        }
+    }
+
     (clean_chars, diacritics)
 }
 
@@ -95,7 +116,7 @@ fn to_valid_chars(input: impl Iterator<Item = char>) -> (String, HashSet<char>) 
     let mut valid = String::new();
     let mut invalid = HashSet::new();
     for c in input {
-        if INPUT_ID_MAP.contains_key(&c) {
+        if INPUT_ID_MAP.contains_key(&c) | ARABIC_DIACRITICS.contains(&c) {
             valid.push(c);
         } else if NUMERALS.contains(&c) {
             valid.push(NUMERAL_SYMBOL);
@@ -108,6 +129,10 @@ fn to_valid_chars(input: impl Iterator<Item = char>) -> (String, HashSet<char>) 
 
 fn input_to_ids(input: impl Iterator<Item = char>) -> Vec<i64> {
     Vec::from_iter(input.map(|c| INPUT_ID_MAP[&c]))
+}
+
+fn hint_to_ids(hints: Vec<String>) -> Vec<i64> {
+    Vec::from_iter(hints.into_iter().map(|s| HINT_ID_MAP[&s]))
 }
 
 fn target_to_diacritics(target_ids: impl Iterator<Item = u8>) -> Vec<String> {
@@ -127,7 +152,9 @@ fn annotate_text_with_diacritics(
     let mut output = String::new();
     let mut diac_iter = diacritics.iter();
     for c in input.chars() {
-        if removed_chars.contains(&c) {
+        if ARABIC_DIACRITICS.contains(&c) {
+            continue;
+        } else if removed_chars.contains(&c) {
             output.push(c);
         } else {
             output.push(c);
@@ -146,37 +173,67 @@ fn annotate_text_with_diacritics_taskeen(
     taskeen_threshold: Option<f32>,
 ) -> String {
     let taskeen_threshold = taskeen_threshold.unwrap();
+    let sukoon = char::from_u32(0x652).unwrap();
     let mut output = String::new();
     let mut diac_iter = diacritics.iter().zip(logits);
-    let mut next_char_iter = input.chars();
-    next_char_iter.next();
-    let sukoon = unsafe { char::from_u32_unchecked(1618u32) };
-    for this_char in input.chars() {
-        if removed_chars.contains(&this_char) {
-            output.push(this_char);
+    for c in input.chars() {
+        if ARABIC_DIACRITICS.contains(&c) {
+            continue;
+        } else if removed_chars.contains(&c) {
+            output.push(c);
         } else {
-            let (diacritic, logit) = diac_iter.next().unwrap();
-            output.push(this_char);
-            if diacritic.is_empty() {
-                continue;
-            }
+            output.push(c);
+            let (diac, logit) = diac_iter.next().unwrap();
             if logit > taskeen_threshold {
-                output.push_str(diacritic);
-                continue;
-            }
-            let next_char = next_char_iter.next();
-            if next_char.is_some() && SENTENCE_BOUNDRIES.contains(&next_char.unwrap()) {
                 output.push(sukoon);
-                continue;
+            } else {
+                output.push_str(diac);
             }
-            output.push_str(diacritic);
         }
     }
     output
 }
 
+#[cfg(feature = "rayon")]
 pub fn do_tashkeel(
-    engine: &impl InferenceEngine,
+    engine: &(impl InferenceEngine + Send + Sync),
+    text: &str,
+    taskeen_threshold: Option<f32>,
+    preprocessed: bool,
+) -> LibtashkeelResult<String> {
+    if preprocessed {
+        return _do_tashkeel_impl(engine, text, taskeen_threshold);
+    }
+
+    let out: LibtashkeelResult<Vec<String>> = libtqsm::segment("ar", text)
+        .unwrap()
+        .par_iter()
+        .map(|sent| _do_tashkeel_impl(engine, sent, taskeen_threshold))
+        .collect();
+    out.map(|v| v.join(" "))
+}
+
+#[cfg(not(feature = "rayon"))]
+pub fn do_tashkeel(
+    engine: &(impl InferenceEngine + Send + Sync),
+    text: &str,
+    taskeen_threshold: Option<f32>,
+    preprocessed: bool,
+) -> LibtashkeelResult<String> {
+    if preprocessed {
+        return _do_tashkeel_impl(engine, text, taskeen_threshold);
+    }
+
+    let out: LibtashkeelResult<Vec<String>> = libtqsm::segment("ar", text)
+        .unwrap()
+        .into_iter()
+        .map(|sent| _do_tashkeel_impl(engine, &sent, taskeen_threshold))
+        .collect();
+    out.map(|v| v.join(" "))
+}
+
+pub fn _do_tashkeel_impl(
+    engine: &(impl InferenceEngine + Send + Sync),
     text: &str,
     taskeen_threshold: Option<f32>,
 ) -> LibtashkeelResult<String> {
@@ -186,23 +243,24 @@ pub fn do_tashkeel(
         return Err(LibtashkeelError::InputTooLong(CHAR_LIMIT));
     }
 
-    let (text, _diacritics) = extract_chars_and_diacritics(text);
     let (input_text, removed_chars) = to_valid_chars(text.chars());
+    let (input_text, diacritics) = extract_chars_and_diacritics(&input_text, true);
 
     let input_ids = input_to_ids(input_text.chars());
+    let diac_ids = hint_to_ids(diacritics);
     let seq_length = input_ids.len();
 
     if seq_length > 0 {
         let timer = std::time::Instant::now();
-        let (target_ids, logits) = engine.infer(input_ids, seq_length)?;
+        let (target_ids, logits) = engine.infer(input_ids, diac_ids, seq_length)?;
         let inference_ms = timer.elapsed().as_millis() as f32;
         log::debug!("Inference time: {} ms", inference_ms);
         let diacritics = target_to_diacritics(target_ids.into_iter());
         let final_text = if taskeen_threshold.is_none() {
-            annotate_text_with_diacritics(&text, diacritics, removed_chars)
+            annotate_text_with_diacritics(text, diacritics, removed_chars)
         } else {
             annotate_text_with_diacritics_taskeen(
-                &text,
+                text,
                 diacritics,
                 removed_chars,
                 logits,
@@ -212,7 +270,7 @@ pub fn do_tashkeel(
         Ok(final_text)
     } else {
         log::debug!("Inference time: {} ms", 0.0);
-        Ok(text)
+        Ok(text.into())
     }
 }
 
@@ -226,7 +284,7 @@ mod tests {
 
     #[test]
     fn test_extract_diacritics_when_empty() {
-        let (chars, diacritics) = extract_chars_and_diacritics("");
+        let (chars, diacritics) = extract_chars_and_diacritics("", false);
         assert_eq!(chars.is_empty(), true);
         assert_eq!(diacritics.is_empty(), true);
     }
@@ -234,7 +292,7 @@ mod tests {
     #[test]
     fn test_extract_diacritics() {
         let text = "بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ";
-        let (chars, diacritics) = extract_chars_and_diacritics(text);
+        let (chars, diacritics) = extract_chars_and_diacritics(text, true);
 
         assert_eq!(chars.chars().count(), diacritics.len());
 
@@ -249,8 +307,8 @@ mod tests {
     fn test_basic_tashkeel() -> LibtashkeelResult<()> {
         let text = "بسم الله الرحمن الرحيم";
 
-        let expected = "بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ";
-        let tashkeeled = do_tashkeel(&*INFERENCE_ENGINE, text, None)?;
+        let expected = "بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيم";
+        let tashkeeled = do_tashkeel(&*INFERENCE_ENGINE, text, None, false)?;
         println!("Tashkeel: {}", tashkeeled);
 
         assert_ne!(tashkeeled, text);
@@ -261,15 +319,16 @@ mod tests {
     #[test]
     fn test_taskeen() -> LibtashkeelResult<()> {
         let poem = [
-            "من ذا يقارن حسنك المغري بصيف قد تجلى.",
-            "وفنون سحرك قد بدت في ناظري أسمى وأغلى.",
-            "تجني الرياح العاتيات على البراعم وهي جذلى.",
-            "والصيف يمضي مسرعا إذ عقده المحدود ولى.",
+            "من ذا يقارن حسنك المغري بصيف قد تجلى",
+            "وفنون سحرك قد بدت في ناظري أسمى وأغلى",
+            "تجني الرياح العاتيات على البراعم وهي جذلى",
+            "والصيف يمضي مسرعا إذ عقده المحدود ولى",
+            "ستعانقين العصر في شعري، وفيك أقول",
         ]
         .join(" ");
 
-        let no_taskeen = do_tashkeel(&*INFERENCE_ENGINE, &poem, None)?;
-        let taskeen = do_tashkeel(&*INFERENCE_ENGINE, &poem, Some(0.80))?;
+        let no_taskeen = do_tashkeel(&*INFERENCE_ENGINE, &poem, None, false)?;
+        let taskeen = do_tashkeel(&*INFERENCE_ENGINE, &poem, Some(0.8), false)?;
 
         assert_eq!(taskeen == no_taskeen, false);
 
@@ -278,6 +337,14 @@ mod tests {
         let taskeen_sukoon_count = taskeen.chars().filter(|c| c == &sukoon).count();
         assert_eq!(taskeen_sukoon_count > no_taskeen_sukoon_count, true);
 
+        Ok(())
+    }
+    #[test]
+    fn test_hints() -> LibtashkeelResult<()> {
+        let text = "بِسمِ اللّه الرّحمن الرّحيم ABC";
+        do_tashkeel(&*INFERENCE_ENGINE, &text, None, false)?;
+        let text = "مّنْ يُقلِّب  ABC";
+        do_tashkeel(&*INFERENCE_ENGINE, &text, None, false)?;
         Ok(())
     }
 }

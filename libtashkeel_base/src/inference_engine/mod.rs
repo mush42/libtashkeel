@@ -13,9 +13,10 @@ impl InferenceEngine for DynamicInferenceEngine {
     fn infer(
         &self,
         input_ids: Vec<i64>,
+        diac_ids: Vec<i64>,
         seq_length: usize,
     ) -> LibtashkeelResult<(Vec<u8>, Vec<f32>)> {
-        self.0.infer(input_ids, seq_length)
+        self.0.infer(input_ids, diac_ids, seq_length)
     }
 }
 

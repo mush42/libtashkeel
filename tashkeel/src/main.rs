@@ -59,12 +59,12 @@ fn tashkeel_main(
     let mut diacritized_text: String = String::new();
     if args.input_file.is_none() {
         let input = String::from_iter(input_text.chars().take(CHAR_LIMIT));
-        diacritized_text.push_str(&do_tashkeel(model, &input, taskeen_threshold)?);
+        diacritized_text.push_str(&do_tashkeel(model, &input, taskeen_threshold, false)?);
     } else {
         let mut diacritized_lines = String::new();
         for input_line in input_text.lines() {
             let input = String::from_iter(input_line.chars().take(CHAR_LIMIT));
-            let diacritized_line = do_tashkeel(model, &input, taskeen_threshold)?;
+            let diacritized_line = do_tashkeel(model, &input, taskeen_threshold, false)?;
             if args.output_file.is_none() {
                 write_to_stdout(&diacritized_line)?;
             } else {
