@@ -206,7 +206,12 @@ pub fn do_tashkeel(
     }
 
     let out: LibtashkeelResult<Vec<String>> = libtqsm::segment("ar", text)
-        .unwrap()
+        .map_err(|e| {
+            LibtashkeelError::InferenceError(format!(
+                "Failed to segment input text into sentences: `{}`",
+                e
+            ))
+        })?
         .par_iter()
         .map(|sent| _do_tashkeel_impl(engine, sent, taskeen_threshold))
         .collect();
@@ -225,7 +230,12 @@ pub fn do_tashkeel(
     }
 
     let out: LibtashkeelResult<Vec<String>> = libtqsm::segment("ar", text)
-        .unwrap()
+        .map_err(|e| {
+            LibtashkeelError::InferenceError(format!(
+                "Failed to segment input text into sentences: `{}`",
+                e
+            ))
+        })?
         .into_iter()
         .map(|sent| _do_tashkeel_impl(engine, &sent, taskeen_threshold))
         .collect();
