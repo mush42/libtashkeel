@@ -47,11 +47,9 @@ impl OrtEngine {
     pub fn from_bytes(model_bytes: &[u8]) -> LibtashkeelResult<OrtEngine> {
         let session = Session::builder()?
             .with_optimization_level(GraphOptimizationLevel::Level3)?
-            // .with_allocator(ort::AllocatorType::Arena)?
-            // .with_memory_pattern(true)?
-            // .with_parallel_execution(true)?
-            // .with_inter_threads(2)?
-            // .with_intra_threads(2)?
+            .with_parallel_execution(true)?
+            .with_inter_threads(2)?
+            .with_intra_threads(2)?
             .commit_from_memory(model_bytes)?;
 
         Ok(Self(session))
