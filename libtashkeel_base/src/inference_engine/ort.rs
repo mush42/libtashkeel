@@ -1,6 +1,6 @@
 use crate::{InferenceEngine, LibtashkeelError, LibtashkeelResult};
 use ndarray::{Array1, Array2};
-use ort::{GraphOptimizationLevel, Session, SessionInputs, Value};
+use ort::{GraphOptimizationLevel, Session};
 use std::path::Path;
 
 impl From<ort::Error> for LibtashkeelError {
@@ -23,14 +23,14 @@ fn ort_session_run(
     let input_length = Array1::<i64>::from_iter([seq_length as i64]);
 
     let (target_ids, logits): (Vec<u8>, Vec<f32>) = {
-        let inputs = vec![
-            Value::from_array(input_ids).unwrap(),
-            Value::from_array(diac_ids).unwrap(),
-            Value::from_array(input_length).unwrap(),
-        ];
-        let outputs = session.run(SessionInputs::from(inputs.as_slice()))?;
-        let target_ids = outputs[0].extract_tensor::<u8>()?;
-        let logits = outputs[1].extract_tensor::<f32>()?;
+        let inputs = ort::inputs![
+            input_ids,
+            diac_ids,
+            input_length,
+        ]?;
+        let outputs = session.run(inputs)?;
+        let target_ids = outputs[0].try_extract_tensor::<u8>()?;
+        let logits = outputs[1].try_extract_tensor::<f32>()?;
         let target_ids_vec = Vec::from_iter(target_ids.view().iter().copied());
         let logits_vec = Vec::from_iter(logits.view().iter().copied());
         (target_ids_vec, logits_vec)
@@ -47,24 +47,24 @@ impl OrtEngine {
     pub fn from_bytes(model_bytes: &[u8]) -> LibtashkeelResult<OrtEngine> {
         let session = Session::builder()?
             .with_optimization_level(GraphOptimizationLevel::Level3)?
-            .with_allocator(ort::AllocatorType::Arena)?
-            .with_memory_pattern(true)?
-            .with_parallel_execution(true)?
-            .with_inter_threads(2)?
-            .with_intra_threads(2)?
-            .with_model_from_memory(model_bytes)?;
+            // .with_allocator(ort::AllocatorType::Arena)?
+            // .with_memory_pattern(true)?
+            // .with_parallel_execution(true)?
+            // .with_inter_threads(2)?
+            // .with_intra_threads(2)?
+            .commit_from_memory(model_bytes)?;
 
         Ok(Self(session))
     }
     pub fn from_path(model_path: impl AsRef<Path>) -> LibtashkeelResult<Self> {
         let session = Session::builder()?
             .with_optimization_level(GraphOptimizationLevel::Level3)?
-            .with_allocator(ort::AllocatorType::Arena)?
-            .with_memory_pattern(true)?
-            .with_parallel_execution(true)?
-            .with_inter_threads(2)?
-            .with_intra_threads(2)?
-            .with_model_from_file(model_path)?;
+            // .with_allocator(ort::AllocatorType::Arena)?
+            // .with_memory_pattern(true)?
+            // .with_parallel_execution(true)?
+            // .with_inter_threads(2)?
+            // .with_intra_threads(2)?
+            .commit_from_file(model_path)?;
 
         Ok(Self(session))
     }
