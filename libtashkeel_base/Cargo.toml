@@ -15,7 +15,7 @@ ort = ["dep:ort"]
 ort-dylib = ["ort/load-dynamic"]
 
 [dependencies]
-libtqsm = { version = "0.6.1", path = "../../tqsm/libtqsm" }
+libtqsm = "0.6.1"
 log = "0.4.18"
 ndarray = "0.15.6"
 once_cell = "1.18.0"
