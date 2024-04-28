@@ -51,6 +51,12 @@ section {
 	border: 1px solid transparent;
 }
 
+.interactive {
+    margin-top: 3rem;
+    grid-template-columns: 1fr;
+    row-gap: 1rem;
+}
+
 .resource:hover {
 	border: 1px solid #000;
 	box-shadow: 0 25px 50px -12px #673ab888;

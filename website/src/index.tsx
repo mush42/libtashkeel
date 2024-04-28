@@ -38,22 +38,30 @@ export function App() {
                     href="https://www.npmjs.com/package/libtashkeel-wasm"
                 />
             </section>
-            <textarea
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            style={{ direction: "rtl" }}
-            rows={5}
-            placeholder="Enter text to diacritize..."
-            />
-            <button onClick={handleTashkeel}>Diacritize</button>
-            <textarea
-            id="output"
-            value={processedText}
-            style={{ direction: "rtl" }}
-            rows={5}
-            placeholder="Diacritized text..."
-            readOnly
-            />
+            <div class="interactive">
+                <div class="row">
+                    <textarea
+                    value={inputText}
+                    onChange={(e) => setInputText(e.target.value)}
+                    style={{ direction: "rtl" }}
+                    rows={5}
+                    placeholder="Enter text to diacritize..."
+                    />
+                </div>
+                <div class="row">
+                    <button onClick={handleTashkeel}>Diacritize</button>
+                </div>
+                <div class="row">
+                    <textarea
+                    id="output"
+                    value={processedText}
+                    style={{ direction: "rtl" }}
+                    rows={5}
+                    placeholder="Diacritized text..."
+                    readOnly
+                    />
+                </div>
+            </div>
         </div>
     );
 }
