@@ -1,0 +1,38 @@
+[package]
+name = "libtashkeel-wasm"
+version = "1.6.0"
+authors = ["Musharraf Omer<ibnomer2011@hotmail.com>"]
+license = "MIT/Apache-2.0"
+edition = "2021"
+description = "Arabic-text diacritic restoration using neural networks"
+repository = "https://github.com/mush42/libtashkeel"
+documentation = "https://github.com/mush42/libtashkeel"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["ort", "console_error_panic_hook"]
+ort = ["libtashkeel_base/ort", "dep:ort"]
+ort-dylib = ["libtashkeel_base/ort-dylib"]
+
+[dependencies]
+wasm-bindgen = "0.2.84"
+# The `console_error_panic_hook` crate provides better debugging of panics by
+# logging them with `console.error`. This is great for development, but requires
+# all the `std::fmt` and `std::panicking` infrastructure, so isn't great for
+# code size when deploying.
+console_error_panic_hook = { version = "0.1.7", optional = true }
+once_cell = "1.19.0"
+
+[dependencies.libtashkeel_base]
+path = "../libtashkeel_base"
+default-features = false
+
+[dependencies.ort]
+optional = true
+git = "https://github.com/pykeio/ort.git"
+rev = "80be2068296b04e8ae0a442d4b9c2d635362d07e"
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3.34"

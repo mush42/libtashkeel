@@ -261,10 +261,13 @@ pub fn _do_tashkeel_impl(
     let seq_length = input_ids.len();
 
     if seq_length > 0 {
+        #[cfg(not(target_arch = "wasm32"))]
         let timer = std::time::Instant::now();
         let (target_ids, logits) = engine.infer(input_ids, diac_ids, seq_length)?;
-        let inference_ms = timer.elapsed().as_millis() as f32;
-        log::debug!("Inference time: {} ms", inference_ms);
+        #[cfg(not(target_arch = "wasm32"))] {
+            let inference_ms = timer.elapsed().as_millis() as f32;
+            log::debug!("Inference time: {} ms", inference_ms);
+        }
         let diacritics = target_to_diacritics(target_ids.into_iter());
         let final_text = if taskeen_threshold.is_none() {
             annotate_text_with_diacritics(text, diacritics, removed_chars)

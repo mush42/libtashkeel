@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "libtashkeel_base",
     "libtashkeel",
+    "libtashkeel-wasm",
     "pylibtashkeel",
     "tashkeel",
 ]
@@ -12,3 +13,6 @@ opt-level = 3
 lto = true
 strip = true
 codegen-units = 1
+
+[profile.release.package.libtashkeel-wasm]
+opt-level = "s"

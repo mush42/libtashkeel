@@ -39,12 +39,19 @@ fn ort_session_run(
     Ok((target_ids, logits))
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 const MODEL_BYTES: &[u8] = include_bytes!("../../data/ort/model.onnx");
+#[cfg(target_arch = "wasm32")]
+const MODEL_BYTES: &[u8] = include_bytes!("../../data/ort/model.ort");
 
+#[cfg(not(target_arch = "wasm32"))]
 pub struct OrtEngine(Session);
+#[cfg(target_arch = "wasm32")]
+pub struct OrtEngine(ort::InMemorySession<'static>);
 
 impl OrtEngine {
-    pub fn from_bytes(model_bytes: &[u8]) -> LibtashkeelResult<OrtEngine> {
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn from_bytes(model_bytes: &'static [u8]) -> LibtashkeelResult<OrtEngine> {
         let session = Session::builder()?
             .with_optimization_level(GraphOptimizationLevel::Level3)?
             .with_parallel_execution(true)?
@@ -54,17 +61,25 @@ impl OrtEngine {
 
         Ok(Self(session))
     }
+    #[cfg(target_arch = "wasm32")]
+    pub fn from_bytes(model_bytes: &'static [u8]) -> LibtashkeelResult<OrtEngine> {
+        let session = Session::builder()?.commit_from_memory_directly(model_bytes)?;
+        Ok(Self(session))
+    }
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn from_path(model_path: impl AsRef<Path>) -> LibtashkeelResult<Self> {
         let session = Session::builder()?
             .with_optimization_level(GraphOptimizationLevel::Level3)?
-            // .with_allocator(ort::AllocatorType::Arena)?
-            // .with_memory_pattern(true)?
-            // .with_parallel_execution(true)?
-            // .with_inter_threads(2)?
-            // .with_intra_threads(2)?
+            .with_parallel_execution(true)?
+            .with_inter_threads(2)?
+            .with_intra_threads(2)?
             .commit_from_file(model_path)?;
 
         Ok(Self(session))
+    }
+    #[cfg(target_arch = "wasm32")]
+    pub fn from_path(model_path: impl AsRef<Path>) -> LibtashkeelResult<Self> {
+        unimplemented!()
     }
     pub fn with_bundled_model() -> LibtashkeelResult<OrtEngine> {
         Self::from_bytes(MODEL_BYTES)

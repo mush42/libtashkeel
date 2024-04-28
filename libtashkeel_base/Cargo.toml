@@ -25,8 +25,10 @@ serde_json = "1.0.89"
 thiserror = "1.0.47"
 
 [dependencies.ort]
-version = "2.0.0-rc.1"
+git = "https://github.com/pykeio/ort.git"
+rev = "80be2068296b04e8ae0a442d4b9c2d635362d07e"
 optional = true
 
 [dev-dependencies.ort]
-version = "2.0.0-rc.1"
+git = "https://github.com/pykeio/ort.git"
+rev = "80be2068296b04e8ae0a442d4b9c2d635362d07e"
