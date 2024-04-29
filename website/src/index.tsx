@@ -38,7 +38,7 @@ export function App() {
                     href="https://www.npmjs.com/package/libtashkeel-wasm"
                 />
             </section>
-            <div class="interactive">
+            <div class="container">
                 <div class="row">
                     <textarea
                     value={inputText}
