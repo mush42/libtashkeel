@@ -5,3 +5,7 @@ bin/
 pkg/
 lib/
 wasm-pack.log
+
+jsr/libtashkeel_wasm.generated.d.ts
+jsr/libtashkeel_wasm.generated.js
+jsr/libtashkeel_wasm_bg.wasm
