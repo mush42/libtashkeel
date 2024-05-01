@@ -12,12 +12,12 @@ documentation = "https://github.com/mush42/libtashkeel"
 crate-type = ["cdylib", "rlib"]
 
 [features]
-default = ["ort", "console_error_panic_hook"]
+default = ["ort",]
 ort = ["libtashkeel_base/ort", "dep:ort"]
 ort-dylib = ["libtashkeel_base/ort-dylib"]
 
 [dependencies]
-wasm-bindgen = "0.2.84"
+wasm-bindgen = "0.2.92"
 # The `console_error_panic_hook` crate provides better debugging of panics by
 # logging them with `console.error`. This is great for development, but requires
 # all the `std::fmt` and `std::panicking` infrastructure, so isn't great for
@@ -34,5 +34,3 @@ optional = true
 git = "https://github.com/pykeio/ort.git"
 rev = "80be2068296b04e8ae0a442d4b9c2d635362d07e"
 
-[dev-dependencies]
-wasm-bindgen-test = "0.3.34"

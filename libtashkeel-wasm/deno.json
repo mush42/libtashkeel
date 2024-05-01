@@ -1,0 +1,6 @@
+{
+  "tasks": {
+    "dev": "deno run --watch main.ts",
+    "wasmbuild": "deno run -A jsr:@deno/wasmbuild@0.17.1"
+  }
+}
