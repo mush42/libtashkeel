@@ -6,10 +6,10 @@
 
 The library uses models trained mainly on MSA data, from [Hareef](https://github.com/mush42/hareef).
 
-## Getting Libtashkeel
+## Installing Libtashkeel
 
 ```bash
-deno add nlp/tashkeel@1.6.3
+deno add nlp/tashkeel@1.6.4
 ```
 
 ## Usage 

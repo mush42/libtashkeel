@@ -1,5 +1,5 @@
 {
   "name": "@nlp/tashkeel",
-  "version": "1.6.3",
+  "version": "1.6.4",
   "exports": "./mod.ts"
 }
