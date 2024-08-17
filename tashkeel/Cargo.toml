@@ -8,6 +8,12 @@ description = "Arabic-text diacritic restoration using neural networks"
 repository = "https://github.com/mush42/libtashkeel"
 documentation = "https://github.com/mush42/libtashkeel"
 
+[package.metadata.wix]
+upgrade-guid = "2A9A8753-788C-48B7-BAFA-47CF994C51FC"
+path-guid = "B4095211-EE92-481A-B3EF-4B88238200A4"
+license = false
+eula = false
+
 [features]
 default = ["ort"]
 ort = ["libtashkeel_base/ort"]
