@@ -1,4 +1,4 @@
-use libtashkeel_base::{create_inference_engine, do_tashkeel, DynamicInferenceEngine};
+use libtashkeel_core::{create_inference_engine, do_tashkeel, DynamicInferenceEngine};
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 use pyo3::sync::GILOnceCell;

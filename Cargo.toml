@@ -1,10 +1,10 @@
 [workspace]
 resolver = "2"
 members = [
-    "libtashkeel_base",
-    "libtashkeel",
-    "pylibtashkeel",
-    "tashkeel",
+    "crates/core",
+    "crates/capi",
+    "crates/cli",
+    "crates/python",
 ]
 
 # Config for 'cargo dist'

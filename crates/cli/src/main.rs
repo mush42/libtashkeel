@@ -1,5 +1,5 @@
 use clap::Parser;
-use libtashkeel_base::{create_inference_engine, do_tashkeel, DynamicInferenceEngine, CHAR_LIMIT};
+use libtashkeel_core::{create_inference_engine, do_tashkeel, DynamicInferenceEngine, CHAR_LIMIT};
 use std::fs::File;
 use std::io::{self, prelude::*};
 use std::path::PathBuf;

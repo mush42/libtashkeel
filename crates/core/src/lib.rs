@@ -5,11 +5,11 @@ use std::collections::{HashMap, HashSet};
 use std::iter;
 use thiserror::Error;
 
-mod inference_engine;
-pub use self::inference_engine::DynamicInferenceEngine;
+mod backend;
+pub use self::backend::DynamicInferenceEngine;
 
 #[cfg(feature = "ort")]
-pub use self::inference_engine::create_inference_engine;
+pub use self::backend::create_inference_engine;
 
 pub type LibtashkeelResult<T> = Result<T, LibtashkeelError>;
 

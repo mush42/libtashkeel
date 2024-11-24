@@ -14,13 +14,13 @@ crate-type = ["cdylib"]
 
 [features]
 default = ["ort"]
-ort = ["libtashkeel_base/ort"]
-ort-dylib = ["libtashkeel_base/ort-dylib"]
+ort = ["libtashkeel_core/ort"]
+ort-dylib = ["libtashkeel_core/ort-dylib"]
 
 [dependencies.pyo3]
 version = "0.18.1"
 features = ["extension-module", "abi3-py37",]
 
-[dependencies.libtashkeel_base]
-path = "../libtashkeel_base"
+[dependencies.libtashkeel_core]
+path = "../core"
 default-features = false

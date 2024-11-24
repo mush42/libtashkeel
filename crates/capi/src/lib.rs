@@ -1,7 +1,7 @@
 use ffi_support::{
     call_with_result, define_string_destructor, rust_string_to_c, ErrorCode, ExternError, FfiStr,
 };
-use libtashkeel_base::{
+use libtashkeel_core::{
     create_inference_engine, do_tashkeel, DynamicInferenceEngine, LibtashkeelError,
 };
 use once_cell::sync::OnceCell;

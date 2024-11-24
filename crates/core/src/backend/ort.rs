@@ -1,6 +1,6 @@
 use crate::{InferenceEngine, LibtashkeelError, LibtashkeelResult};
 use ndarray::{Array1, Array2};
-use ort::{GraphOptimizationLevel, Session};
+use ort::{session::{Session, builder::GraphOptimizationLevel,}};
 use std::path::Path;
 
 impl From<ort::Error> for LibtashkeelError {
@@ -13,7 +13,7 @@ impl From<ort::Error> for LibtashkeelError {
 }
 
 fn ort_session_run(
-    session: &ort::Session,
+    session: &Session,
     input_ids: Vec<i64>,
     diac_ids: Vec<i64>,
     seq_length: usize,
