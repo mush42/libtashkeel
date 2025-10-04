@@ -75,7 +75,7 @@ To build **Python** bindings as a wheel, you need to install [maturin](https://g
 Run the following to build the wheel:
 
 ```bash
-$ cd pylibtashkeel
+$ cd crates/python
 $ python3 -m venv .venv
 $ source .venv/bin/activate
 $ pip install maturin
