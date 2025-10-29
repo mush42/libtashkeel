@@ -1,7 +1,8 @@
 use crate::{InferenceEngine, LibtashkeelError, LibtashkeelResult};
 use ndarray::{Array1, Array2};
-use ort::{session::{Session, builder::GraphOptimizationLevel,}};
+use ort::{session::{Session, builder::GraphOptimizationLevel,}, value::Value};
 use std::path::Path;
+use std::sync::Mutex;
 
 impl From<ort::Error> for LibtashkeelError {
     fn from(other: ort::Error) -> Self {
@@ -13,7 +14,7 @@ impl From<ort::Error> for LibtashkeelError {
 }
 
 fn ort_session_run(
-    session: &Session,
+    session: &Mutex<Session>,
     input_ids: Vec<i64>,
     diac_ids: Vec<i64>,
     seq_length: usize,
@@ -23,16 +24,20 @@ fn ort_session_run(
     let input_length = Array1::<i64>::from_iter([seq_length as i64]);
 
     let (target_ids, logits): (Vec<u8>, Vec<f32>) = {
+        let input_ids_value = Value::from_array(input_ids)?;
+        let diac_ids_value = Value::from_array(diac_ids)?;
+        let input_length_value = Value::from_array(input_length)?;
         let inputs = ort::inputs![
-            input_ids,
-            diac_ids,
-            input_length,
-        ]?;
+            input_ids_value,
+            diac_ids_value,
+            input_length_value,
+        ];
+        let mut session = session.lock().unwrap();
         let outputs = session.run(inputs)?;
-        let target_ids = outputs[0].try_extract_tensor::<u8>()?;
-        let logits = outputs[1].try_extract_tensor::<f32>()?;
-        let target_ids_vec = Vec::from_iter(target_ids.view().iter().copied());
-        let logits_vec = Vec::from_iter(logits.view().iter().copied());
+        let (_, target_ids) = outputs[0].try_extract_tensor::<u8>()?;
+        let (_, logits) = outputs[1].try_extract_tensor::<f32>()?;
+        let target_ids_vec = Vec::from_iter(target_ids.iter().copied());
+        let logits_vec = Vec::from_iter(logits.iter().copied());
         (target_ids_vec, logits_vec)
     };
 
@@ -41,7 +46,7 @@ fn ort_session_run(
 
 const MODEL_BYTES: &[u8] = include_bytes!("../../data/ort/model.onnx");
 
-pub struct OrtEngine(Session);
+pub struct OrtEngine(Mutex<Session>);
 
 impl OrtEngine {
     pub fn from_bytes(model_bytes: &[u8]) -> LibtashkeelResult<OrtEngine> {
@@ -52,7 +57,7 @@ impl OrtEngine {
             .with_intra_threads(2)?
             .commit_from_memory(model_bytes)?;
 
-        Ok(Self(session))
+        Ok(Self(Mutex::new(session)))
     }
     pub fn from_path(model_path: impl AsRef<Path>) -> LibtashkeelResult<Self> {
         let session = Session::builder()?
@@ -64,7 +69,7 @@ impl OrtEngine {
             // .with_intra_threads(2)?
             .commit_from_file(model_path)?;
 
-        Ok(Self(session))
+        Ok(Self(Mutex::new(session)))
     }
     pub fn with_bundled_model() -> LibtashkeelResult<OrtEngine> {
         Self::from_bytes(MODEL_BYTES)
